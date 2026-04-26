@@ -15,47 +15,53 @@ const SIZE_MAP = {
   xs: { ring: 16, stroke: 2, label: 11 },
   sm: { ring: 24, stroke: 2.5, label: 12 },
   md: { ring: 40, stroke: 3.5, label: 13 },
-  lg: { ring: 60, stroke: 4,   label: 14 },
-  xl: { ring: 80, stroke: 5,   label: 15 },
+  lg: { ring: 60, stroke: 4, label: 14 },
+  xl: { ring: 80, stroke: 5, label: 15 },
 };
 
 // ── Secondary Green (Style Guide) ────────────────────────────
-const COLOR_MAIN  = '#10B981';   // secondary-500
-const COLOR_TRACK = '#D1FAE5';   // secondary-100
+const COLOR_MAIN = "#10B981"; // secondary-500
+const COLOR_TRACK = "#D1FAE5"; // secondary-100
 
 export default function LoadingSpinner({
-  size      = 'md',
-  label     = '',
+  size = "md",
+  label = "",
   fullScreen = false,
-  inline     = false,
+  inline = false,
 }) {
   const { ring, stroke, label: labelSize } = SIZE_MAP[size] || SIZE_MAP.md;
-  const r     = (ring - stroke) / 2;
-  const circ  = 2 * Math.PI * r;
-  const dash  = circ * 0.72;   // 72% ممتلئ، 28% فارغ
+  const r = (ring - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const dash = circ * 0.72; // 72% ممتلئ، 28% فارغ
 
   // ── SVG Spinner ───────────────────────────────────────────
   const spinnerSVG = (
     <div
       role="status"
-      aria-label={label || 'جاري التحميل'}
+      aria-label={label || "جاري التحميل"}
       style={{
-        display: 'flex',
-        flexDirection: inline ? 'row' : 'column',
-        alignItems: 'center',
+        display: "flex",
+        flexDirection: inline ? "row" : "column",
+        alignItems: "center",
         gap: inline ? 8 : 12,
       }}
     >
       {/* حلقة النبض خلف السبينر */}
-      <div style={{ position: 'relative', width: ring, height: ring, flexShrink: 0 }}>
-
+      <div
+        style={{
+          position: "relative",
+          width: ring,
+          height: ring,
+          flexShrink: 0,
+        }}
+      >
         {/* Pulse ring — تشير إلى النشاط */}
         <div
           className="animate-pulse-ring"
           style={{
-            position: 'absolute',
+            position: "absolute",
             inset: -4,
-            borderRadius: '50%',
+            borderRadius: "50%",
             border: `2px solid ${COLOR_MAIN}`,
             opacity: 0.35,
           }}
@@ -67,7 +73,7 @@ export default function LoadingSpinner({
           width={ring}
           height={ring}
           viewBox={`0 0 ${ring} ${ring}`}
-          style={{ display: 'block' }}
+          style={{ display: "block" }}
         >
           {/* Track (المسار الباهت) */}
           <circle
@@ -96,14 +102,16 @@ export default function LoadingSpinner({
 
       {/* Label */}
       {label && (
-        <span style={{
-          fontSize: labelSize,
-          color: '#64748B',       // neutral
-          fontFamily: "'Inter', sans-serif",
-          fontWeight: 500,
-          letterSpacing: 0.2,
-          whiteSpace: 'nowrap',
-        }}>
+        <span
+          style={{
+            fontSize: labelSize,
+            color: "#64748B", // neutral
+            fontFamily: "'Inter', sans-serif",
+            fontWeight: 500,
+            letterSpacing: 0.2,
+            whiteSpace: "nowrap",
+          }}
+        >
           {label}
         </span>
       )}
@@ -115,33 +123,41 @@ export default function LoadingSpinner({
     return (
       <div
         style={{
-          position: 'fixed',
+          position: "fixed",
           inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexDirection: "column",
           gap: 20,
-          background: 'rgba(10, 25, 47, 0.55)',  // primary overlay
-          backdropFilter: 'blur(6px)',
-          WebkitBackdropFilter: 'blur(6px)',
+          background: "rgba(10, 25, 47, 0.55)", // primary overlay
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
           zIndex: 9999,
         }}
       >
         {/* Card wrapper */}
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: 16,
-          padding: '32px 40px',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: 16,
-          boxShadow: '0 8px 40px rgba(10,25,47,0.2)',
-        }}>
+        <div
+          style={{
+            background: "#FFFFFF",
+            borderRadius: 16,
+            padding: "32px 40px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 16,
+            boxShadow: "0 8px 40px rgba(10,25,47,0.2)",
+          }}
+        >
           {spinnerSVG}
           {!label && (
-            <span style={{ fontSize: 13, color: '#64748B', fontFamily: "'Inter', sans-serif" }}>
+            <span
+              style={{
+                fontSize: 13,
+                color: "#64748B",
+                fontFamily: "'Inter', sans-serif",
+              }}
+            >
               جاري التحميل...
             </span>
           )}
@@ -157,14 +173,16 @@ export default function LoadingSpinner({
 
   // ── Default (Block centered) ──────────────────────────────
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '48px 0',
-      gap: 14,
-    }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "48px 0",
+        gap: 14,
+      }}
+    >
       {spinnerSVG}
     </div>
   );

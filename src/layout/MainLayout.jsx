@@ -1,13 +1,13 @@
-import { useState } from 'react';
-import { Outlet, Navigate } from 'react-router-dom';
-import Sidebar from './Sidebar';
-import Navbar from './Navbar';
-import { useLanguage } from '../context/LanguageContext';
+import { useState } from "react";
+import { Outlet, Navigate } from "react-router-dom";
+import Sidebar from "./Sidebar";
+import Navbar from "./Navbar";
+import { useLanguage } from "../context/LanguageContext";
 
 const SIDEBAR_WIDTH = 264;
 
 export default function MainLayout() {
-  const token = localStorage.getItem('auth_token');
+  const token = localStorage.getItem("auth_token");
   const { dir } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -16,21 +16,26 @@ export default function MainLayout() {
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      minHeight: '100vh',
-      background: '#EFF3FA',
-      direction: dir,
-    }}>
+    <div
+      style={{
+        display: "flex",
+        minHeight: "100vh",
+        background: "#EFF3FA",
+        direction: dir,
+      }}
+    >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className={`layout-content ${dir}`} style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        minHeight: '100vh',
-        overflow: 'hidden',
-      }}>
+      <div
+        className={`layout-content ${dir}`}
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100vh",
+          overflow: "hidden",
+        }}
+      >
         <Navbar onMenuClick={() => setSidebarOpen(true)} />
 
         <main
@@ -38,8 +43,8 @@ export default function MainLayout() {
           className="animate-fadeIn"
           style={{
             flex: 1,
-            padding: '28px 32px',
-            overflowY: 'auto',
+            padding: "28px 32px",
+            overflowY: "auto",
           }}
         >
           <Outlet />

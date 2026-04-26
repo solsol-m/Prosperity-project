@@ -22,7 +22,7 @@
  * @returns {boolean}
  */
 export function isAuthenticated() {
-  return !!localStorage.getItem('auth_token');
+  return !!localStorage.getItem("auth_token");
 }
 
 // ── جلب اسم المستخدم الحالي ────────────────────────────────
@@ -30,7 +30,7 @@ export function isAuthenticated() {
  * @returns {string} اسم المستخدم أو "Guest"
  */
 export function getCurrentUser() {
-  return localStorage.getItem('auth_user') || 'Guest';
+  return localStorage.getItem("auth_user") || "Guest";
 }
 
 // ── تسجيل الدخول (Mock) ─────────────────────────────────────
@@ -42,11 +42,11 @@ export function getCurrentUser() {
  * @param {{ email: string, fullname?: string }} user
  */
 export function loginUser({ email, fullname }) {
-  const mockName = fullname || email.split('@')[0];
-  saveSession('mock_token_prosperity_v1', mockName);
+  const mockName = fullname || email.split("@")[0];
+  saveSession("mock_token_prosperity_v1", mockName);
 
-  const isOnboarded = localStorage.getItem('onboardingComplete') === 'true';
-  window.location.href = isOnboarded ? '/dashboard' : '/onboarding';
+  const isOnboarded = localStorage.getItem("onboardingComplete") === "true";
+  window.location.href = isOnboarded ? "/dashboard" : "/onboarding";
 }
 
 // ── إنشاء حساب (Mock) ─────────────────────────────────────
@@ -59,12 +59,12 @@ export function loginUser({ email, fullname }) {
  */
 export function registerUser({ fullname, email, password }) {
   // حفظ المستخدم محلياً ليعمل في شاشة الدخول
-  const users = JSON.parse(localStorage.getItem('registered_users') || '[]');
+  const users = JSON.parse(localStorage.getItem("registered_users") || "[]");
   users.push({ email, fullname, password });
-  localStorage.setItem('registered_users', JSON.stringify(users));
+  localStorage.setItem("registered_users", JSON.stringify(users));
 
-  saveSession('mock_token_prosperity_v1', fullname);
-  window.location.href = '/onboarding';
+  saveSession("mock_token_prosperity_v1", fullname);
+  window.location.href = "/onboarding";
 }
 
 // ── تسجيل الخروج ─────────────────────────────────────────
@@ -73,13 +73,13 @@ export function registerUser({ fullname, email, password }) {
  *   await postRequest('/auth/logout');
  */
 export function logoutUser() {
-  localStorage.removeItem('auth_token');
-  localStorage.removeItem('auth_user');
-  window.location.href = '/login';
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_user");
+  window.location.href = "/login";
 }
 
 // ── دالة مساعدة داخلية ─────────────────────────────────────
 function saveSession(token, name) {
-  localStorage.setItem('auth_token', token);
-  localStorage.setItem('auth_user', name);
+  localStorage.setItem("auth_token", token);
+  localStorage.setItem("auth_user", name);
 }

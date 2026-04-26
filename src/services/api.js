@@ -22,18 +22,19 @@
 //  3. فعّل الـ withCredentials إذا كنت تستخدم PHP Sessions
 // ──────────────────────────────────────────────────────────────
 
-import axios from 'axios';
+import axios from "axios";
 
 // ── رابط الـ API الأساسي ────────────────────────────────────
 // TODO (أنيس): استبدل القيمة الافتراضية برابط الـ Backend الحقيقي
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost/prosperity-api';
+const BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/prosperity-api";
 
 const api = axios.create({
   baseURL: BASE_URL,
   timeout: 15000,
   headers: {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
+    "Content-Type": "application/json",
+    Accept: "application/json",
   },
   // withCredentials: true, // ← فعّل هذا إذا كنت تستخدم PHP Sessions أو Cookies
 });
@@ -42,13 +43,13 @@ const api = axios.create({
 // يضيف تلقائياً التوكن من localStorage قبل كل طلب
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem("auth_token");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 // ── Response Interceptor ────────────────────────────────────
@@ -60,27 +61,32 @@ api.interceptors.response.use(
 
     // انتهت الجلسة — أعد التوجيه لصفحة تسجيل الدخول
     if (status === 401) {
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('auth_user');
-      window.location.href = '/login';
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      window.location.href = "/login";
     }
 
-    if (status === 403) console.warn('[API] ⛔ ليس لديك صلاحية لهذا المورد');
-    if (status === 500) console.error('[API] 🔥 خطأ في الخادم — تواصل مع المطوّر');
+    if (status === 403) console.warn("[API] ⛔ ليس لديك صلاحية لهذا المورد");
+    if (status === 500)
+      console.error("[API] 🔥 خطأ في الخادم — تواصل مع المطوّر");
 
     const message =
       error.response?.data?.message ||
       error.message ||
-      'حدث خطأ غير متوقع، حاول مرة أخرى';
+      "حدث خطأ غير متوقع، حاول مرة أخرى";
 
     return Promise.reject(new Error(message));
-  }
+  },
 );
 
 export default api;
 
 // ── دوال مساعدة مختصرة ─────────────────────────────────────
-export const getRequest    = (endpoint, params = {}) => api.get(endpoint, { params }).then(r => r.data);
-export const postRequest   = (endpoint, data = {})   => api.post(endpoint, data).then(r => r.data);
-export const putRequest    = (endpoint, data = {})   => api.put(endpoint, data).then(r => r.data);
-export const deleteRequest = (endpoint)              => api.delete(endpoint).then(r => r.data);
+export const getRequest = (endpoint, params = {}) =>
+  api.get(endpoint, { params }).then((r) => r.data);
+export const postRequest = (endpoint, data = {}) =>
+  api.post(endpoint, data).then((r) => r.data);
+export const putRequest = (endpoint, data = {}) =>
+  api.put(endpoint, data).then((r) => r.data);
+export const deleteRequest = (endpoint) =>
+  api.delete(endpoint).then((r) => r.data);
