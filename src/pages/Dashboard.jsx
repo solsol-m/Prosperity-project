@@ -74,7 +74,7 @@ const CAT_COLORS = {
   entertainment: { color: "#8B5CF6", bg: "#F5F3FF" },
   salary: { color: "#10B981", bg: "#ECFDF5" },
   freelance: { color: "#16A34A", bg: "#F0FDF4" },
-  bonus: { color: "#CA8A04", bg: "#FEF9C3" },
+  bonus: { color: "#F97316", bg: "#FFEDD5" },
   investment: { color: "#2563EB", bg: "#EFF6FF" },
   groceries: { color: "#16A34A", bg: "#F0FDF4" },
   income: { color: "#10B981", bg: "#ECFDF5" },
@@ -152,21 +152,15 @@ export default function Dashboard() {
     });
   }
 
-  // AI Budget Data (Daily)
-  const dailyBudget = totalIncome / 30;
-  // Get expenses just for today
-  const todayStr = new Date().toISOString().split("T")[0];
-  const spentToday = transactions
-    .filter((t) => t.date === todayStr && t.amount < 0)
-    .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-  const remainingToday = Math.max(0, dailyBudget - spentToday);
-  const budgetRatio = dailyBudget > 0 ? spentToday / dailyBudget : 0;
+  // AI Budget Data (Overall instead of just Daily)
+  const spentTotal = totalExpenses;
+  const remainingTotal = Math.max(0, totalIncome - totalExpenses);
+  const budgetRatio = totalIncome > 0 ? spentTotal / totalIncome : 0;
   const budgetColor = budgetRatio > 0.8 ? "#EF4444" : "#10B981";
 
   const pieData = [
-    { name: "Spent", value: spentToday, color: budgetColor },
-    { name: "Remaining", value: remainingToday, color: "#F1F5F9" },
+    { name: "Spent", value: spentTotal, color: budgetColor },
+    { name: "Remaining", value: remainingTotal, color: "#F1F5F9" },
   ];
 
   const formatCurrency = (val) => {
@@ -177,14 +171,12 @@ export default function Dashboard() {
     }).format(val);
   };
 
-  // Calculate Category Breakdown (Expenses Only)
-  const categoryData = filteredTxs
-    .filter((tx) => tx.amount < 0)
-    .reduce((acc, tx) => {
-      const cat = tx.category || "default";
-      acc[cat] = (acc[cat] || 0) + Math.abs(tx.amount);
-      return acc;
-    }, {});
+  // Calculate Category Breakdown (All Transactions)
+  const categoryData = filteredTxs.reduce((acc, tx) => {
+    const cat = tx.category || "default";
+    acc[cat] = (acc[cat] || 0) + Math.abs(tx.amount);
+    return acc;
+  }, {});
 
   const catPieData = Object.entries(categoryData)
     .map(([name, value]) => ({
@@ -958,7 +950,7 @@ export default function Dashboard() {
                         fontFamily: "'Manrope', sans-serif",
                       }}
                     >
-                      {formatCurrency(remainingToday)}
+                      {formatCurrency(remainingTotal)}
                     </div>
                     <div
                       style={{
