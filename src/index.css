@@ -1,0 +1,374 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ═══════════════════════════════════════════════════════════════
+   🎨 FinTech Pro — Style Guide Tokens (Tailwind v4 @theme)
+   ملاحظة: في Tailwind v4 لا يوجد tailwind.config.js
+   بدلاً منه نستخدم @theme هنا (يؤدي نفس الدور بالضبط)
+   ═══════════════════════════════════════════════════════════════ */
+
+@theme {
+
+  /* ── Brand Colors (من الـ Style Guide) ── */
+
+  /* Primary — Midnight Navy #0A192F */
+  --color-primary:      #0A192F;
+  --color-primary-50:   #E8EDF5;
+  --color-primary-100:  #C5D1E5;
+  --color-primary-200:  #9FAFD0;
+  --color-primary-300:  #728DBB;
+  --color-primary-400:  #4E71AA;
+  --color-primary-500:  #2A5599;
+  --color-primary-600:  #1A3D7A;
+  --color-primary-700:  #0F2A5C;
+  --color-primary-800:  #0A192F;   /* ← اللون الأصلي */
+  --color-primary-900:  #060F1C;
+  --color-primary-950:  #030810;
+
+  /* Secondary — Emerald Green #10B981 */
+  --color-secondary:    #10B981;
+  --color-secondary-50:  #ECFDF5;
+  --color-secondary-100: #D1FAE5;
+  --color-secondary-200: #A7F3D0;
+  --color-secondary-300: #6EE7B7;
+  --color-secondary-400: #34D399;
+  --color-secondary-500: #10B981;  /* ← اللون الأصلي */
+  --color-secondary-600: #059669;
+  --color-secondary-700: #047857;
+  --color-secondary-800: #065F46;
+  --color-secondary-900: #064E3B;
+  --color-secondary-950: #022C22;
+
+  /* Tertiary — Bright Blue #3B82F6 */
+  --color-tertiary:     #3B82F6;
+  --color-tertiary-50:  #EFF6FF;
+  --color-tertiary-100: #DBEAFE;
+  --color-tertiary-200: #BFDBFE;
+  --color-tertiary-300: #93C5FD;
+  --color-tertiary-400: #60A5FA;
+  --color-tertiary-500: #3B82F6;   /* ← اللون الأصلي */
+  --color-tertiary-600: #2563EB;
+  --color-tertiary-700: #1D4ED8;
+  --color-tertiary-800: #1E40AF;
+  --color-tertiary-900: #1E3A8A;
+
+  /* Neutral — Slate Gray #64748B */
+  --color-neutral:      #64748B;
+  --color-neutral-50:   #F8FAFC;
+  --color-neutral-100:  #F1F5F9;
+  --color-neutral-200:  #E2E8F0;
+  --color-neutral-300:  #CBD5E1;
+  --color-neutral-400:  #94A3B8;
+  --color-neutral-500:  #64748B;   /* ← اللون الأصلي */
+  --color-neutral-600:  #475569;
+  --color-neutral-700:  #334155;
+  --color-neutral-800:  #1E293B;
+  --color-neutral-900:  #0F172A;
+
+  /* Surface — خلفيات الصفحات والبطاقات */
+  --color-surface-bg:     #EFF3FA;  /* خلفية الصفحة (من الـ Style Guide) */
+  --color-surface-card:   #FFFFFF;
+  --color-surface-border: #E2E8F0;
+  --color-surface-muted:  #F1F5F9;
+
+  /* Status Colors */
+  --color-success:  #10B981;
+  --color-warning:  #F59E0B;
+  --color-danger:   #EF4444;
+  --color-info:     #3B82F6;
+
+  /* ── Typography (من الـ Style Guide) ── */
+  /* Headline → Manrope | Body/Label → Inter */
+  --font-headline: 'Manrope', system-ui, sans-serif;
+  --font-body:     'Inter', system-ui, sans-serif;
+  --font-sans:     'Inter', 'Manrope', system-ui, sans-serif;
+
+  /* ── Layout ── */
+  --sidebar-width: 264px;
+  --navbar-height: 68px;
+
+  /* ── Border Radius ── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-full: 9999px;
+
+  /* ── Shadows ── */
+  --shadow-card: 0 1px 3px rgba(10,25,47,0.06), 0 4px 16px rgba(10,25,47,0.08);
+  --shadow-btn:  0 2px 8px rgba(10,25,47,0.18);
+  --shadow-focus: 0 0 0 3px rgba(16,185,129,0.25);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   🌟 Base Reset & Global Styles
+   ═══════════════════════════════════════════════════════════════ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  direction: rtl;          /* ← RTL لأن الواجهة عربية */
+  scroll-behavior: smooth;
+  font-size: 16px;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-surface-bg);
+  color: var(--color-primary-800);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Headlines → Manrope */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-headline);
+  font-weight: 700;
+  color: var(--color-primary-800);
+  line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🎯 Scrollbar
+   ═══════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--color-neutral-100); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-300);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-secondary-400); }
+
+/* ═══════════════════════════════════════════════════════════════
+   ✨ Animations
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(0.9); opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+
+.animate-fadeIn    { animation: fadeIn 0.35s ease both; }
+.animate-spin      { animation: spin   0.85s linear infinite; }
+.animate-pulse-ring { animation: pulse-ring 1.4s ease-out infinite; }
+
+/* ═══════════════════════════════════════════════════════════════
+   🃏 Card Component
+   ═══════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--color-surface-card);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.card:hover {
+  box-shadow: 0 4px 24px rgba(10,25,47,0.12);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🔘 Button System (من الـ Style Guide)
+   Primary | Secondary | Inverted | Outlined
+   ═══════════════════════════════════════════════════════════════ */
+
+/* PRIMARY — كحلي ممتلئ */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: var(--color-primary-800);
+  color: #FFFFFF;
+  font-family: var(--font-headline);
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid var(--color-primary-800);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn-primary:hover {
+  background: var(--color-primary-700);
+  border-color: var(--color-primary-700);
+  box-shadow: var(--shadow-btn);
+  transform: translateY(-1px);
+}
+.btn-primary:active { transform: translateY(0); }
+.btn-primary:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+
+/* SECONDARY — أخضر ممتلئ */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: var(--color-secondary-500);
+  color: #FFFFFF;
+  font-family: var(--font-headline);
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid var(--color-secondary-500);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-secondary:hover {
+  background: var(--color-secondary-600);
+  border-color: var(--color-secondary-600);
+  transform: translateY(-1px);
+}
+
+/* INVERTED — كحلي شفاف (خلفية فاتحة، نص كحلي) */
+.btn-inverted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: var(--color-primary-50);
+  color: var(--color-primary-800);
+  font-family: var(--font-headline);
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid var(--color-primary-100);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-inverted:hover {
+  background: var(--color-primary-100);
+  border-color: var(--color-primary-200);
+}
+
+/* OUTLINED — حدود فقط بدون خلفية */
+.btn-outlined {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: transparent;
+  color: var(--color-primary-800);
+  font-family: var(--font-headline);
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid var(--color-primary-800);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-outlined:hover {
+  background: var(--color-primary-800);
+  color: #FFFFFF;
+  transform: translateY(-1px);
+}
+
+/* OUTLINED SECONDARY */
+.btn-outlined-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 22px;
+  background: transparent;
+  color: var(--color-secondary-600);
+  font-family: var(--font-headline);
+  font-weight: 600;
+  font-size: 14px;
+  border: 2px solid var(--color-secondary-500);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.btn-outlined-secondary:hover {
+  background: var(--color-secondary-500);
+  color: #FFFFFF;
+}
+
+/* Icon Button (دائري مع أيقونة) */
+.btn-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.18s;
+  font-size: 16px;
+}
+.btn-icon-primary   { background: var(--color-primary-800);   color: #fff; }
+.btn-icon-secondary { background: var(--color-secondary-500); color: #fff; }
+.btn-icon-danger    { background: var(--color-danger);         color: #fff; }
+.btn-icon-neutral   { background: var(--color-neutral-200);   color: var(--color-neutral-700); }
+.btn-icon:hover     { transform: scale(1.08); }
+
+/* ═══════════════════════════════════════════════════════════════
+   🏷️ Badge / Tag
+   ═══════════════════════════════════════════════════════════════ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+.badge-primary   { background: var(--color-primary-50);    color: var(--color-primary-800); }
+.badge-secondary { background: var(--color-secondary-100); color: var(--color-secondary-700); }
+.badge-success   { background: #ECFDF5; color: #065F46; }
+.badge-danger    { background: #FEF2F2; color: #991B1B; }
+.badge-warning   { background: #FFFBEB; color: #92400E; }
+.badge-neutral   { background: var(--color-neutral-100);   color: var(--color-neutral-600); }
+
+/* ═══════════════════════════════════════════════════════════════
+   📝 Input / Search
+   ═══════════════════════════════════════════════════════════════ */
+.input-base {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--color-surface-card);
+  border: 1.5px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--color-primary-800);
+  direction: rtl;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.input-base::placeholder { color: var(--color-neutral-400); }
+.input-base:focus {
+  border-color: var(--color-secondary-400);
+  box-shadow: var(--shadow-focus);
+}
