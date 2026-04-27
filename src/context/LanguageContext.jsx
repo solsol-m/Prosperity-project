@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * LanguageContext — إدارة اللغة (AR / EN)
  * يقرأ الترجمات من: src/locales/ar.json و en.json

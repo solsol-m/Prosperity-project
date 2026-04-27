@@ -7,12 +7,6 @@
  *  📋 طريقة الاستخدام:
  *    import api from '@/services/api';
  *    const data = await api.get('/transactions');
- *
- *  🔧 الإعداد:
- *    - أنشئ ملف .env.local في جذر المشروع
- *    - أضف: VITE_API_BASE_URL=https://your-backend.com/api
- *
- * ============================================================
  */
 
 // ──────────────────────────────────────────────────────────────
@@ -25,9 +19,8 @@
 import axios from "axios";
 
 // ── رابط الـ API الأساسي ────────────────────────────────────
-// TODO (أنيس): استبدل القيمة الافتراضية برابط الـ Backend الحقيقي
 const BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost/prosperity-api";
+  import.meta.env.VITE_API_BASE_URL || "https://prosperity.runasp.net";
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -39,11 +32,30 @@ const api = axios.create({
   // withCredentials: true, // ← فعّل هذا إذا كنت تستخدم PHP Sessions أو Cookies
 });
 
+export function setAuthToken(token) {
+  if (token) {
+    api.defaults.headers.common.Authorization = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common.Authorization;
+  }
+}
+
+// Hydrate axios defaults on app load/refresh
+setAuthToken(
+  localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken") ||
+    "",
+);
+
 // ── Request Interceptor ─────────────────────────────────────
 // يضيف تلقائياً التوكن من localStorage قبل كل طلب
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem("auth_token");
+    const token =
+      localStorage.getItem("token") ||
+      localStorage.getItem("auth_token") ||
+      localStorage.getItem("accessToken");
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -58,11 +70,23 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
+    const requestUrl = error.config?.url || "";
+    const isAuthRequest =
+      requestUrl.includes("/api/Auth/login") ||
+      requestUrl.includes("/api/Auth/register");
 
     // انتهت الجلسة — أعد التوجيه لصفحة تسجيل الدخول
-    if (status === 401) {
+    if (
+      status === 401 &&
+      !isAuthRequest &&
+      window.location.pathname !== "/login" &&
+      window.location.pathname !== "/register"
+    ) {
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("token");
+      localStorage.removeItem("accessToken");
       localStorage.removeItem("auth_user");
+      setAuthToken("");
       window.location.href = "/login";
     }
 
@@ -70,12 +94,7 @@ api.interceptors.response.use(
     if (status === 500)
       console.error("[API] 🔥 خطأ في الخادم — تواصل مع المطوّر");
 
-    const message =
-      error.response?.data?.message ||
-      error.message ||
-      "حدث خطأ غير متوقع، حاول مرة أخرى";
-
-    return Promise.reject(new Error(message));
+    return Promise.reject(error);
   },
 );
 

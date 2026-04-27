@@ -18,9 +18,9 @@
  * ============================================================
  */
 
+import { useEffect, useState } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { LanguageProvider } from "./context/LanguageContext";
-import { loginUser, registerUser } from "./services/authService";
 
 // Layout
 import MainLayout from "./layout/MainLayout";
@@ -37,21 +37,44 @@ import Goals from "./pages/Goals";
 import AIInsights from "./pages/AIInsights";
 import FuturePlanning from "./pages/FuturePlanning";
 
+function ProtectedLayout() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasToken] = useState(() =>
+    Boolean(
+      localStorage.getItem("token") ||
+        localStorage.getItem("auth_token") ||
+        localStorage.getItem("accessToken"),
+    ),
+  );
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 80);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return null;
+  }
+
+  if (!hasToken) {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <MainLayout />;
+}
+
 export default function App() {
   return (
     <LanguageProvider>
       <BrowserRouter>
         <Routes>
           {/* ── صفحات الـ Auth (خارج MainLayout — شاشة كاملة) ── */}
-          <Route path="/login" element={<Login onLogin={loginUser} />} />
-          <Route
-            path="/register"
-            element={<Register onRegister={registerUser} />}
-          />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route path="/onboarding" element={<Onboarding />} />
 
           {/* ── صفحات التطبيق (داخل MainLayout: Sidebar + Navbar) ── */}
-          <Route element={<MainLayout />}>
+          <Route element={<ProtectedLayout />}>
             {/* إعادة التوجيه من الجذر للداشبورد */}
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />

@@ -41,6 +41,12 @@ const CAT_ICONS = {
   default: Tag,
 };
 
+const getCategoryKey = (cat) =>
+  String(cat?.name || cat || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "_");
+
 export default function AddTransactionModal({
   isOpen,
   onClose,
@@ -51,7 +57,7 @@ export default function AddTransactionModal({
   const modalRef = useRef(null);
   const dropdownRef = useRef(null);
 
-  const [categories, setCategories] = useState({ expense: [], income: [] });
+  const [categories, setCategories] = useState({ expense: [], income: [], raw: [] });
   const [isLoadingCats, setIsLoadingCats] = useState(true);
   const [showCatDropdown, setShowCatDropdown] = useState(false);
 
@@ -67,15 +73,18 @@ export default function AddTransactionModal({
   useEffect(() => {
     if (isOpen) {
       let isMounted = true;
-      setIsLoadingCats(true);
+      const startLoadingTimer = setTimeout(() => {
+        if (isMounted) setIsLoadingCats(true);
+      }, 0);
       fetchCategories().then((data) => {
         if (isMounted) {
-          setCategories(data);
+          setCategories(data || { expense: [], income: [], raw: [] });
           setIsLoadingCats(false);
         }
       });
       return () => {
         isMounted = false;
+        clearTimeout(startLoadingTimer);
       };
     }
   }, [isOpen]);
@@ -83,37 +92,47 @@ export default function AddTransactionModal({
   // Handle data initialization when modal opens or editData/categories change
   useEffect(() => {
     if (isOpen) {
-      if (editData) {
-        setNewTx({
-          type:
-            editData.type ||
-            (categories.income?.includes(editData.category)
-              ? "income"
-              : "expense"),
-          name: editData.name,
-          amount: Math.abs(editData.amount).toString(),
-          category: editData.category,
-          date: editData.date,
-        });
-      } else {
-        setNewTx((prev) => ({
-          ...prev,
-          name: "",
-          amount: "",
-          date: new Date().toISOString().split("T")[0],
-        }));
-      }
+      const initTimer = setTimeout(() => {
+        if (editData) {
+          setNewTx({
+            type:
+              editData.type ||
+              (categories.income
+                ?.map((c) => getCategoryKey(c))
+                .includes(editData.category)
+                ? "income"
+                : "expense"),
+            name: editData.name,
+            amount: Math.abs(editData.amount).toString(),
+            category: editData.category,
+            date: editData.date,
+          });
+        } else {
+          setNewTx((prev) => ({
+            ...prev,
+            name: "",
+            amount: "",
+            date: new Date().toISOString().split("T")[0],
+          }));
+        }
+      }, 0);
+
+      return () => clearTimeout(initTimer);
     }
   }, [editData, isOpen, categories]);
 
   // Ensure default category is selected if none is set
   useEffect(() => {
     if (!isLoadingCats && !editData && !newTx.category) {
-      setNewTx((prev) => ({
-        ...prev,
-        category:
-          prev.type === "income" ? categories.income[0] : categories.expense[0],
-      }));
+      const catTimer = setTimeout(() => {
+        setNewTx((prev) => ({
+          ...prev,
+          category: getCategoryKey(
+            prev.type === "income" ? categories.income[0] : categories.expense[0],
+          ),
+        }));
+      }, 0);
+      return () => clearTimeout(catTimer);
     }
   }, [isLoadingCats, newTx.type, editData, newTx.category, categories]);
 
@@ -123,7 +142,8 @@ export default function AddTransactionModal({
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
-      setShowCatDropdown(false);
+      const closeDropdownTimer = setTimeout(() => setShowCatDropdown(false), 0);
+      return () => clearTimeout(closeDropdownTimer);
     }
     return () => {
       document.body.style.overflow = "";
@@ -143,7 +163,7 @@ export default function AddTransactionModal({
 
   if (!isOpen) return null;
 
-  function handleSave() {
+  async function handleSave() {
     if (!newTx.name || !newTx.amount) return;
 
     const isIncome = newTx.type === "income";
@@ -159,9 +179,9 @@ export default function AddTransactionModal({
     };
 
     if (editData) {
-      updateTransaction(editData.id, txObj);
+      await updateTransaction(editData.id, txObj);
     } else {
-      addTransaction(txObj);
+      await addTransaction(txObj);
     }
 
     if (onSuccess) onSuccess();
@@ -288,7 +308,7 @@ export default function AddTransactionModal({
                   setNewTx({
                     ...newTx,
                     type: "expense",
-                    category: categories.expense[0],
+                    category: getCategoryKey(categories.expense[0]),
                   })
                 }
                 style={{ accentColor: "#10B981", width: 18, height: 18 }}
@@ -313,7 +333,7 @@ export default function AddTransactionModal({
                   setNewTx({
                     ...newTx,
                     type: "income",
-                    category: categories.income[0],
+                    category: getCategoryKey(categories.income[0]),
                   })
                 }
                 style={{ accentColor: "#10B981", width: 18, height: 18 }}
@@ -497,13 +517,14 @@ export default function AddTransactionModal({
                   }}
                 >
                   {currentCatsList?.map((cat) => {
-                    const IconComp = CAT_ICONS[cat] || CAT_ICONS.default;
-                    const isSelected = newTx.category === cat;
+                    const catKey = getCategoryKey(cat);
+                    const IconComp = CAT_ICONS[catKey] || CAT_ICONS.default;
+                    const isSelected = newTx.category === catKey;
                     return (
                       <div
-                        key={cat}
+                        key={cat.id || catKey}
                         onClick={() => {
-                          setNewTx({ ...newTx, category: cat });
+                          setNewTx({ ...newTx, category: catKey });
                           setShowCatDropdown(false);
                         }}
                         style={{
@@ -552,7 +573,7 @@ export default function AddTransactionModal({
                               color: isSelected ? "#059669" : "#475569",
                             }}
                           >
-                            {t(`cat_${cat}`)}
+                            {t(`cat_${catKey}`)}
                           </span>
                         </div>
                         {isSelected && <Check size={16} color="#10B981" />}

@@ -19,12 +19,14 @@ import {
   TrendingUp,
   Gift,
   Briefcase,
+  AlertTriangle,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import {
   getTransactions,
   getOnboardingData,
   deleteTransaction,
+  fetchTransactions,
 } from "../services/transactionService";
 import AddTransactionModal from "../components/AddTransactionModal";
 import { generateInvoicePDF } from "../utils/generateInvoicePDF";
@@ -80,10 +82,11 @@ export default function Transactions() {
       ? { body: "'Cairo', sans-serif", headline: "'Cairo', sans-serif" }
       : { body: "'Inter', sans-serif", headline: "'Manrope', sans-serif" };
 
+  const onboardingData = getOnboardingData();
   const [transactions, setTransactions] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editData, setEditData] = useState(null);
-  const [currency, setCurrency] = useState("$");
+  const [currency] = useState(onboardingData?.currency || "$");
 
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all"); // 'all', 'income', 'expense'
@@ -93,17 +96,22 @@ export default function Transactions() {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null); // tracks which tx is downloading
   const [toast, setToast] = useState(null); // { message, type: 'success'|'error' }
+  const [isLoading, setIsLoading] = useState(true);
+  const [txToDelete, setTxToDelete] = useState(null);
 
-  function fetchTx() {
+  async function fetchTx() {
     setTransactions(getTransactions());
+    const fresh = await fetchTransactions();
+    setTransactions(fresh);
   }
 
   useEffect(() => {
-    fetchTx();
-    const onboard = getOnboardingData();
-    if (onboard && onboard.currency) {
-      setCurrency(onboard.currency);
-    }
+    const txTimer = setTimeout(() => {
+      fetchTx().finally(() => setIsLoading(false));
+    }, 0);
+    return () => {
+      clearTimeout(txTimer);
+    };
   }, []);
 
   useEffect(() => {
@@ -145,7 +153,9 @@ export default function Transactions() {
   // For nice date display
   function formatDateLabel(dateStr) {
     const today = new Date().toISOString().split("T")[0];
-    const yest = new Date(Date.now() - 86400000).toISOString().split("T")[0];
+    const yestDate = new Date();
+    yestDate.setDate(yestDate.getDate() - 1);
+    const yest = yestDate.toISOString().split("T")[0];
     if (dateStr === today) return t("tx_today");
     if (dateStr === yest) return t("tx_yesterday");
     return new Date(dateStr).toLocaleDateString(
@@ -191,15 +201,15 @@ export default function Transactions() {
     }
   }
 
-  function handleDelete(id) {
-    const confirmMsg =
-      lang === "ar"
-        ? "هل أنت متأكد أنك تريد حذف هذه العملية؟"
-        : "Are you sure you want to delete this transaction?";
-    if (window.confirm(confirmMsg)) {
-      deleteTransaction(id);
-      fetchTx();
-    }
+  function handleDelete(tx) {
+    setTxToDelete(tx);
+  }
+
+  async function confirmDeleteTransaction() {
+    if (!txToDelete) return;
+    await deleteTransaction(txToDelete.id);
+    await fetchTx();
+    setTxToDelete(null);
   }
 
   function handleAddNew() {
@@ -389,231 +399,294 @@ export default function Transactions() {
 
               {/* List */}
               <div style={{ display: "flex", flexDirection: "column" }}>
-                {Object.keys(grouped)
-                  .sort((a, b) => new Date(b) - new Date(a))
-                  .map((date) => (
-                    <div key={date}>
+                {isLoading ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                    {[1, 2, 3, 4, 5].map((i) => (
                       <div
+                        key={i}
                         style={{
-                          padding: "12px 24px",
-                          background: "#FAFBFC",
-                          fontSize: 13,
-                          fontWeight: 600,
-                          color: "#475569",
+                          height: 72,
+                          padding: "16px 24px",
+                          background: "#FFFFFF",
                           borderBottom: "1px solid #F1F5F9",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 16,
                         }}
                       >
-                        {formatDateLabel(date)}
-                      </div>
-                      {grouped[date].map((tx, idx) => {
-                        const isIncome = tx.type === "income";
-                        const catStyle =
-                          CAT_COLORS[tx.category] || CAT_COLORS.default;
-                        const Icon = CAT_ICONS[tx.category] || Tag;
-                        const isLast = idx === grouped[date].length - 1;
-
-                        return (
+                        <div
+                          className="skeleton"
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 14,
+                            background: "#E2E8F0",
+                            animation: "pulse 1.5s infinite",
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
                           <div
-                            key={tx.id}
+                            className="skeleton"
                             style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "16px 24px",
-                              borderBottom: isLast
-                                ? "none"
-                                : "1px solid #F1F5F9",
-                              transition: "background 0.2s",
-                              cursor: "default",
+                              width: "40%",
+                              height: 14,
+                              background: "#E2E8F0",
+                              animation: "pulse 1.5s infinite",
+                              borderRadius: 4,
+                              marginBottom: 8,
                             }}
-                            className="group hover:bg-slate-50"
-                          >
+                          />
+                          <div
+                            className="skeleton"
+                            style={{
+                              width: "20%",
+                              height: 10,
+                              background: "#E2E8F0",
+                              animation: "pulse 1.5s infinite",
+                              borderRadius: 4,
+                            }}
+                          />
+                        </div>
+                        <div
+                          className="skeleton"
+                          style={{
+                            width: 80,
+                            height: 20,
+                            background: "#E2E8F0",
+                            animation: "pulse 1.5s infinite",
+                            borderRadius: 4,
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  Object.keys(grouped)
+                    .sort((a, b) => new Date(b) - new Date(a))
+                    .map((date) => (
+                      <div key={date}>
+                        <div
+                          style={{
+                            padding: "12px 24px",
+                            background: "#FAFBFC",
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#475569",
+                            borderBottom: "1px solid #F1F5F9",
+                          }}
+                        >
+                          {formatDateLabel(date)}
+                        </div>
+                        {grouped[date].map((tx, idx) => {
+                          const isIncome = tx.type === "income";
+                          const catStyle =
+                            CAT_COLORS[tx.category] || CAT_COLORS.default;
+                          const Icon = CAT_ICONS[tx.category] || Tag;
+                          const isLast = idx === grouped[date].length - 1;
+
+                          return (
                             <div
+                              key={tx.id}
                               style={{
                                 display: "flex",
+                                justifyContent: "space-between",
                                 alignItems: "center",
-                                gap: 16,
+                                padding: "16px 24px",
+                                borderBottom: isLast
+                                  ? "none"
+                                  : "1px solid #F1F5F9",
+                                transition: "background 0.2s",
+                                cursor: "default",
                               }}
+                              className="group hover:bg-slate-50"
                             >
                               <div
                                 style={{
-                                  width: 44,
-                                  height: 44,
-                                  borderRadius: 14,
-                                  background: catStyle.bg,
-                                  color: catStyle.color,
                                   display: "flex",
                                   alignItems: "center",
-                                  justifyContent: "center",
+                                  gap: 16,
                                 }}
                               >
-                                <Icon size={22} />
-                              </div>
-                              <div>
                                 <div
                                   style={{
-                                    fontSize: 15,
-                                    fontWeight: 700,
-                                    color: "#0A192F",
-                                    marginBottom: 2,
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 14,
+                                    background: catStyle.bg,
+                                    color: catStyle.color,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
                                   }}
                                 >
-                                  {tx.name}
+                                  <Icon size={22} />
                                 </div>
-                                <div style={{ fontSize: 13, color: "#64748B" }}>
-                                  {t(`cat_${tx.category}`)}
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: 15,
+                                      fontWeight: 700,
+                                      color: "#0A192F",
+                                      marginBottom: 2,
+                                    }}
+                                  >
+                                    {tx.name}
+                                  </div>
+                                  <div style={{ fontSize: 13, color: "#64748B" }}>
+                                    {t(`cat_${tx.category}`)}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
 
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 20,
-                              }}
-                            >
                               <div
                                 style={{
-                                  textAlign: dir === "rtl" ? "left" : "right",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 20,
                                 }}
                               >
                                 <div
                                   style={{
-                                    fontSize: 16,
-                                    fontWeight: 800,
-                                    fontFamily: font.headline,
-                                    color: isIncome ? "#10B981" : "#EF4444",
+                                    textAlign: dir === "rtl" ? "left" : "right",
                                   }}
                                 >
-                                  {isIncome ? "+" : "-"}
-                                  {currency}
-                                  {Math.abs(tx.amount).toLocaleString(
-                                    undefined,
-                                    { minimumFractionDigits: 2 },
-                                  )}
+                                  <div
+                                    style={{
+                                      fontSize: 16,
+                                      fontWeight: 800,
+                                      fontFamily: font.headline,
+                                      color: isIncome ? "#10B981" : "#EF4444",
+                                    }}
+                                  >
+                                    {isIncome ? "+" : "-"}
+                                    {currency}
+                                    {Math.abs(tx.amount).toLocaleString(
+                                      undefined,
+                                      { minimumFractionDigits: 2 },
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#94A3B8" }}>
+                                    {tx.date}
+                                  </div>
                                 </div>
-                                <div style={{ fontSize: 11, color: "#94A3B8" }}>
-                                  {tx.date}
-                                </div>
-                              </div>
 
-                              {/* Actions */}
-                              <div
-                                style={{ display: "flex", gap: 8 }}
-                                className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
-                              >
-                                {/* Download Invoice */}
-                                <button
-                                  onClick={() => handleDownload(tx)}
-                                  disabled={downloadingId === tx.id}
-                                  title={
-                                    lang === "ar"
-                                      ? "تنزيل الفاتورة"
-                                      : "Download Invoice"
-                                  }
-                                  style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 8,
-                                    border: "none",
-                                    background: "#F0FDF4",
-                                    color: "#10B981",
-                                    cursor:
-                                      downloadingId === tx.id
-                                        ? "wait"
-                                        : "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    transition: "all 0.2s",
-                                  }}
-                                  onMouseEnter={(e) => {
-                                    if (downloadingId !== tx.id) {
-                                      e.currentTarget.style.background =
-                                        "#DCFCE7";
-                                    }
-                                  }}
-                                  onMouseLeave={(e) => {
-                                    e.currentTarget.style.background =
-                                      "#F0FDF4";
-                                  }}
+                                {/* Actions */}
+                                <div
+                                  style={{ display: "flex", gap: 8 }}
+                                  className="lg:opacity-0 lg:group-hover:opacity-100 transition-opacity"
                                 >
-                                  {downloadingId === tx.id ? (
-                                    <span
-                                      style={{
-                                        width: 14,
-                                        height: 14,
-                                        border: "2px solid #10B981",
-                                        borderTopColor: "transparent",
-                                        borderRadius: "50%",
-                                        display: "inline-block",
-                                        animation: "spin 0.7s linear infinite",
-                                      }}
-                                    />
-                                  ) : (
-                                    <Download size={14} />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => handleEdit(tx)}
-                                  style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 8,
-                                    border: "none",
-                                    background: "#F1F5F9",
-                                    color: "#64748B",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                  onMouseEnter={(e) =>
+                                  {/* Download Invoice */}
+                                  <button
+                                    onClick={() => handleDownload(tx)}
+                                    disabled={downloadingId === tx.id}
+                                    title={
+                                      lang === "ar"
+                                        ? "تنزيل الفاتورة"
+                                        : "Download Invoice"
+                                    }
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: 8,
+                                      border: "none",
+                                      background: "#F0FDF4",
+                                      color: "#10B981",
+                                      cursor:
+                                        downloadingId === tx.id
+                                          ? "wait"
+                                          : "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      transition: "all 0.2s",
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      if (downloadingId !== tx.id) {
+                                        e.currentTarget.style.background =
+                                          "#DCFCE7";
+                                      }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                      e.currentTarget.style.background =
+                                        "#F0FDF4";
+                                    }}
+                                  >
+                                    {downloadingId === tx.id ? (
+                                      <span
+                                        style={{
+                                          width: 14,
+                                          height: 14,
+                                          border: "2px solid #10B981",
+                                          borderTopColor: "transparent",
+                                          borderRadius: "50%",
+                                          display: "inline-block",
+                                          animation: "spin 0.7s linear infinite",
+                                        }}
+                                      />
+                                    ) : (
+                                      <Download size={14} />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => handleEdit(tx)}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: 8,
+                                      border: "none",
+                                      background: "#F1F5F9",
+                                      color: "#64748B",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                    onMouseEnter={(e) =>
                                     (e.currentTarget.style.background =
                                       "#E2E8F0")
-                                  }
-                                  onMouseLeave={(e) =>
+                                    }
+                                    onMouseLeave={(e) =>
                                     (e.currentTarget.style.background =
                                       "#F1F5F9")
-                                  }
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(tx.id)}
-                                  style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 8,
-                                    border: "none",
-                                    background: "#FEF2F2",
-                                    color: "#EF4444",
-                                    cursor: "pointer",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                  onMouseEnter={(e) =>
+                                    }
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(tx)}
+                                    style={{
+                                      width: 32,
+                                      height: 32,
+                                      borderRadius: 8,
+                                      border: "none",
+                                      background: "#FEF2F2",
+                                      color: "#EF4444",
+                                      cursor: "pointer",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                    }}
+                                    onMouseEnter={(e) =>
                                     (e.currentTarget.style.background =
                                       "#FEE2E2")
-                                  }
-                                  onMouseLeave={(e) =>
+                                    }
+                                    onMouseLeave={(e) =>
                                     (e.currentTarget.style.background =
                                       "#FEF2F2")
-                                  }
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                    }
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
+                          );
+                        })}
+                      </div>
+                    ))
+                  )}
 
-                {filteredList.length === 0 && (
+                {filteredList.length === 0 && !isLoading && (
                   <div
                     style={{
                       padding: 64,
@@ -684,6 +757,121 @@ export default function Transactions() {
         onSuccess={fetchTx}
         editData={editData}
       />
+
+      {txToDelete &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(10,25,47,0.5)",
+              backdropFilter: "blur(4px)",
+              zIndex: 99999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 20,
+              direction: dir,
+            }}
+          >
+            <div
+              className="animate-fadeIn"
+              style={{
+                background: "#FFFFFF",
+                width: "100%",
+                maxWidth: 460,
+                borderRadius: 24,
+                overflow: "hidden",
+                boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
+              }}
+            >
+              <div
+                style={{
+                  padding: "24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: "50%",
+                    background: "#FEF2F2",
+                    color: "#EF4444",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 16,
+                  }}
+                >
+                  <AlertTriangle size={28} />
+                </div>
+                <h2
+                  style={{
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: "#0A192F",
+                    margin: "0 0 8px",
+                    fontFamily: "'Manrope', sans-serif",
+                  }}
+                >
+                  {lang === "ar" ? "حذف العملية" : "Delete Transaction"}
+                </h2>
+                <p
+                  style={{
+                    color: "#64748B",
+                    fontSize: 15,
+                    margin: "0 0 24px",
+                    lineHeight: 1.6,
+                  }}
+                >
+                  {lang === "ar"
+                    ? `هل أنت متأكد من حذف عملية "${txToDelete.name}"؟ لا يمكن التراجع عن هذا الإجراء.`
+                    : `Are you sure you want to delete the transaction "${txToDelete.name}"? This action cannot be undone.`}
+                </p>
+
+                <div style={{ display: "flex", gap: 12, width: "100%" }}>
+                  <button
+                    onClick={() => setTxToDelete(null)}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      borderRadius: 12,
+                      border: "1px solid #E2E8F0",
+                      background: "#FFFFFF",
+                      color: "#0A192F",
+                      fontWeight: 700,
+                      fontSize: 15,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {lang === "ar" ? "لا" : "No"}
+                  </button>
+                  <button
+                    onClick={confirmDeleteTransaction}
+                    style={{
+                      flex: 1,
+                      padding: "12px",
+                      borderRadius: 12,
+                      border: "none",
+                      background: "#EF4444",
+                      color: "#FFFFFF",
+                      fontWeight: 700,
+                      fontSize: 15,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {lang === "ar" ? "نعم" : "Yes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Toast Notification */}
       {toast &&

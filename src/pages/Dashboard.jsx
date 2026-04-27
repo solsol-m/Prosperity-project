@@ -15,13 +15,14 @@ import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import {
   getTransactions,
-  addTransaction,
   getOnboardingData,
+  fetchTransactions,
 } from "../services/transactionService";
+import { fetchDashboardSummary } from "../services/dashboardService";
+import { fetchGoals } from "../services/goalService";
 import AddTransactionModal from "../components/AddTransactionModal";
 import {
   Utensils,
-  Fuel,
   Briefcase,
   ArrowUpRight,
   ArrowDownRight,
@@ -31,18 +32,24 @@ import {
   Wallet,
   Zap,
   Film,
-  X,
   ShoppingCart,
   Building,
   Bus,
   Coins,
   TrendingUp,
   Gift,
+  Car,
+  Home,
+  Plane,
+  ShieldAlert,
+  Target,
 } from "lucide-react";
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Cell,
@@ -65,6 +72,14 @@ const CAT_ICONS = {
   income: Coins,
 };
 
+const GOAL_ICONS = {
+  emergency: ShieldAlert,
+  car: Car,
+  travel: Plane,
+  home: Home,
+  other: Target,
+};
+
 const CAT_COLORS = {
   food: { color: "#EA580C", bg: "#FFF7ED" },
   transport: { color: "#64748B", bg: "#F1F5F9" },
@@ -84,33 +99,48 @@ const CAT_COLORS = {
 export default function Dashboard() {
   const { t, dir, lang } = useLanguage();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(true);
+  const token =
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
+  const [isLoading, setIsLoading] = useState(Boolean(token));
 
-  // ── حالة المكون ─────────────────────────────────────────────
-  const [transactions, setTransactions] = useState([]);
+  const [transactions, setTransactions] = useState(() => getTransactions());
+  const [goals, setGoals] = useState([]);
+  const [apiSummary, setApiSummary] = useState(null);
   const [timeRange, setTimeRange] = useState(7); // نطاق زمني افتراضي: 7 أيام
   const [showTimeMenu, setShowTimeMenu] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  // ── تحميل البيانات من transactionService ────────────────────
-  // TODO (أنيس): استبدل getTransactions() بـ API call عند الربط
+  // ── تحميل البيانات: API أولاً ثم localStorage كبديل ────────────────
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 1200);
-    setTransactions(getTransactions());
-    return () => clearTimeout(timer);
-  }, []);
+    let cancelled = false;
+
+    // Avoid firing protected API calls before auth token exists.
+    if (!token) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    Promise.all([fetchDashboardSummary(10, 6), fetchGoals(), fetchTransactions()]).then(
+      ([summary, goalsData, txData]) => {
+        if (!cancelled) {
+          setApiSummary(summary); // null = فشل الـ API، يُستخدم اللوكال تلقائياً
+          setGoals(Array.isArray(goalsData) ? goalsData : []);
+          setTransactions(Array.isArray(txData) ? txData : []);
+          setIsLoading(false);
+        }
+      },
+    );
+
+    return () => { cancelled = true; };
+  }, [token]);
 
   // ── بيانات الـ Onboarding (الدخل الأساسي، العملة) ───────────
-  // TODO (أنيس): استبدل بـ API call: GET /api/user/profile
   const onboardingData = getOnboardingData();
-  const currencySymbol =
-    onboardingData.currency === "ILS"
-      ? "₪"
-      : onboardingData.currency === "JOD"
-        ? "د.أ"
-        : "$";
 
-  // Filter transactions by timeRange
+  // Filter transactions by timeRange for CHART ONLY
   const now = new Date();
   now.setHours(23, 59, 59, 999);
   const pastDate = new Date();
@@ -121,34 +151,72 @@ export default function Dashboard() {
     return txDate >= pastDate && txDate <= now;
   });
 
-  // Calculate Totals
-  const addedIncome = filteredTxs
-    .filter((t) => t.amount > 0)
-    .reduce((acc, t) => acc + t.amount, 0);
-  const addedExpenses = filteredTxs
-    .filter((t) => t.amount < 0)
+  // ── حساب الإجماليات ─────────────────────────────────────
+  // الإجماليات المحلية (احتياطِ للخريطة)
+  const localAddedIncome = transactions
+    .filter((t) => t.type === "income" || (t.type !== "expense" && t.amount > 0))
+    .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  const localAddedExpenses = transactions
+    .filter((t) => t.type === "expense" || (t.type !== "income" && t.amount < 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
 
   const baseIncome = onboardingData.income ? Number(onboardingData.income) : 0;
-  const totalIncome = baseIncome + addedIncome;
-  const totalExpenses = addedExpenses;
-  const totalBalance = totalIncome - totalExpenses;
 
-  // Chart Data (Grouped by Day)
+  // API يكسب الأولوية للإجماليات المعروضة، وإلا يُستخدم الحساب المحلي
+  const apiIncome = Number(apiSummary?.totalIncome ?? 0);
+  const apiExpenses = Number(apiSummary?.totalExpenses ?? 0);
+  const apiBalance = Number(apiSummary?.totalBalance ?? 0);
+  const shouldUseBaseIncomeFallback =
+    apiSummary && apiIncome === 0 && apiExpenses === 0 && apiBalance === 0 && baseIncome > 0;
+
+  const totalIncome = apiSummary
+    ? shouldUseBaseIncomeFallback
+      ? baseIncome
+      : apiIncome
+    : (baseIncome + localAddedIncome);
+  const totalExpenses = apiSummary ? apiExpenses : localAddedExpenses;
+  const totalBalance = apiSummary
+    ? shouldUseBaseIncomeFallback
+      ? Math.max(0, baseIncome - apiExpenses)
+      : apiBalance
+    : (totalIncome - totalExpenses);
+
+  // المعاملات للعرض: API أولاً، ثم المحلية
+  const displayTransactions =
+    apiSummary?.recentTransactions?.length
+      ? apiSummary.recentTransactions
+      : transactions;
+
+  const fallbackGoalType = onboardingData.goalType || "emergency";
+  const mainGoal = goals[0] || {
+    name: onboardingData.goalTitle || t(`goal_${fallbackGoalType}`),
+    target: Number(onboardingData.targetAmount) || 50000,
+    saved: 0,
+    category: fallbackGoalType,
+  };
+  const goalProgress = Math.min(100, (mainGoal.saved / mainGoal.target) * 100);
+  const targetAmount = mainGoal.target;
+  const savedAmount = mainGoal.saved;
+  const GoalIcon = GOAL_ICONS[mainGoal.category] || Target;
+
   const chartData = [];
-  // For 7 days, show 7 bars. For 30 days, showing 30 bars is fine in Recharts.
   for (let i = timeRange - 1; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
     const dateStr = d.toISOString().split("T")[0];
 
     const daySpend = filteredTxs
-      .filter((t) => t.date === dateStr && t.amount < 0)
+      .filter((t) => t.date === dateStr && (t.type === "expense" || t.amount < 0))
+      .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+    const dayIncome = filteredTxs
+      .filter((t) => t.date === dateStr && (t.type === "income" || t.amount > 0))
       .reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
     chartData.push({
       day: t(`day_${d.getDay() + 1}`),
       spend: daySpend,
+      income: dayIncome,
     });
   }
 
@@ -172,7 +240,7 @@ export default function Dashboard() {
   };
 
   // Calculate Category Breakdown (All Transactions)
-  const categoryData = filteredTxs.reduce((acc, tx) => {
+  const categoryData = transactions.reduce((acc, tx) => {
     const cat = tx.category || "default";
     acc[cat] = (acc[cat] || 0) + Math.abs(tx.amount);
     return acc;
@@ -188,19 +256,7 @@ export default function Dashboard() {
     }))
     .sort((a, b) => b.value - a.value); // Sort by highest expense
 
-  // Goal Progress Calculation
-  const goalKey = onboardingData.goal || "emergency";
-  const goalTargets = {
-    car: 50000,
-    home: 250000,
-    travel: 10000,
-    emergency: 20000,
-    other: 15000,
-  };
-  const targetAmount = goalTargets[goalKey] || 50000;
 
-  const savedAmount = Math.max(0, totalBalance);
-  const goalProgress = Math.min(100, (savedAmount / targetAmount) * 100);
 
   if (isLoading) {
     return (
@@ -263,480 +319,492 @@ export default function Dashboard() {
   }
 
   return (
-    <>
+
+    <div
+      className="animate-fadeIn"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 24,
+        direction: dir,
+        fontFamily: "'Inter', 'Cairo', sans-serif",
+        position: "relative",
+      }}
+    >
+      {/* Page Header Actions */}
       <div
-        className="animate-fadeIn"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 24,
-          direction: dir,
-          fontFamily: "'Inter', 'Cairo', sans-serif",
-          position: "relative",
-        }}
+        style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
       >
-        {/* Page Header Actions */}
-        <div
-          style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
+        <button
+          onClick={() => setShowModal(true)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            background: "#059669",
+            color: "#FFF",
+            border: "none",
+            borderRadius: 12,
+            padding: "12px 20px",
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "'Inter', 'Cairo', sans-serif",
+            transition: "all 0.2s ease",
+            boxShadow: "0 4px 12px rgba(5, 150, 105, 0.2)",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "#047857";
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow =
+              "0 6px 16px rgba(5, 150, 105, 0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "#059669";
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow =
+              "0 4px 12px rgba(5, 150, 105, 0.2)";
+          }}
         >
+          {dir === "rtl" ? <Plus size={18} /> : null}
+          {t("dash_new_trans")}
+          {dir === "ltr" ? <Plus size={18} /> : null}
+        </button>
+      </div>
+
+      {displayTransactions.length === 0 ? (
+        <div
+          className="animate-fadeIn"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "80px 20px",
+            textAlign: "center",
+            background: "#FFFFFF",
+            borderRadius: 24,
+            border: "1px solid #E2E8F0",
+            boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+            flex: 1,
+          }}
+        >
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: "50%",
+              background: "#F1F5F9",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#94A3B8",
+              marginBottom: 24,
+            }}
+          >
+            <Wallet size={44} strokeWidth={1.5} />
+          </div>
+          <h2
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: "#0A192F",
+              marginBottom: 16,
+              maxWidth: 460,
+              lineHeight: 1.5,
+              fontFamily: "'Manrope', 'Cairo', sans-serif",
+              letterSpacing: -0.5,
+            }}
+          >
+            {t("dash_empty_title")}
+          </h2>
           <button
             onClick={() => setShowModal(true)}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
-              background: "#059669",
+              marginTop: 12,
+              background: "#10B981",
               color: "#FFF",
               border: "none",
               borderRadius: 12,
-              padding: "12px 20px",
-              fontSize: 14,
+              padding: "14px 28px",
+              fontSize: 15,
               fontWeight: 700,
               cursor: "pointer",
               fontFamily: "'Inter', 'Cairo', sans-serif",
               transition: "all 0.2s ease",
-              boxShadow: "0 4px 12px rgba(5, 150, 105, 0.2)",
+              boxShadow: "0 4px 16px rgba(16, 185, 129, 0.25)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#047857";
+              e.currentTarget.style.background = "#059669";
               e.currentTarget.style.transform = "translateY(-2px)";
               e.currentTarget.style.boxShadow =
-                "0 6px 16px rgba(5, 150, 105, 0.3)";
+                "0 6px 20px rgba(16, 185, 129, 0.3)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = "#059669";
+              e.currentTarget.style.background = "#10B981";
               e.currentTarget.style.transform = "translateY(0)";
               e.currentTarget.style.boxShadow =
-                "0 4px 12px rgba(5, 150, 105, 0.2)";
+                "0 4px 16px rgba(16, 185, 129, 0.25)";
             }}
           >
             {dir === "rtl" ? <Plus size={18} /> : null}
-            {t("dash_new_trans")}
+            {t("dash_add_first_btn")}
             {dir === "ltr" ? <Plus size={18} /> : null}
           </button>
         </div>
-
-        {transactions.length === 0 ? (
-          <div
-            className="animate-fadeIn"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "80px 20px",
-              textAlign: "center",
-              background: "#FFFFFF",
-              borderRadius: 24,
-              border: "1px solid #E2E8F0",
-              boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-              flex: 1,
-            }}
-          >
+      ) : (
+        <div className="dashboard-grid">
+          {/* ── Main Column ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Balance Card */}
             <div
               style={{
-                width: 88,
-                height: 88,
-                borderRadius: "50%",
-                background: "#F1F5F9",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "#94A3B8",
-                marginBottom: 24,
+                background: "#FFFFFF",
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                border: "1px solid #E2E8F0",
               }}
             >
-              <Wallet size={44} strokeWidth={1.5} />
-            </div>
-            <h2
-              style={{
-                fontSize: 22,
-                fontWeight: 800,
-                color: "#0A192F",
-                marginBottom: 16,
-                maxWidth: 460,
-                lineHeight: 1.5,
-                fontFamily: "'Manrope', 'Cairo', sans-serif",
-                letterSpacing: -0.5,
-              }}
-            >
-              {t("dash_empty_title")}
-            </h2>
-            <button
-              onClick={() => setShowModal(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginTop: 12,
-                background: "#10B981",
-                color: "#FFF",
-                border: "none",
-                borderRadius: 12,
-                padding: "14px 28px",
-                fontSize: 15,
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "'Inter', 'Cairo', sans-serif",
-                transition: "all 0.2s ease",
-                boxShadow: "0 4px 16px rgba(16, 185, 129, 0.25)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#059669";
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 20px rgba(16, 185, 129, 0.3)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#10B981";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow =
-                  "0 4px 16px rgba(16, 185, 129, 0.25)";
-              }}
-            >
-              {dir === "rtl" ? <Plus size={18} /> : null}
-              {t("dash_add_first_btn")}
-              {dir === "ltr" ? <Plus size={18} /> : null}
-            </button>
-          </div>
-        ) : (
-          <div className="dashboard-grid">
-            {/* ── Main Column ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {/* Balance Card */}
-              <div
+              <h3
                 style={{
-                  background: "#FFFFFF",
-                  borderRadius: 24,
-                  padding: 32,
-                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                  border: "1px solid #E2E8F0",
+                  margin: "0 0 12px",
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "#64748B",
                 }}
               >
-                <h3
+                {t("dash_balance")}
+              </h3>
+              <div
+                style={{
+                  fontSize: 40,
+                  fontWeight: 800,
+                  color: "#0A192F",
+                  margin: "0 0 16px",
+                  fontFamily: "'Manrope', sans-serif",
+                  letterSpacing: -1,
+                }}
+              >
+                {formatCurrency(totalBalance)}
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span
                   style={{
-                    margin: "0 0 12px",
-                    fontSize: 15,
-                    fontWeight: 600,
-                    color: "#64748B",
+                    background: "#ECFDF5",
+                    color: "#10B981",
+                    padding: "4px 10px",
+                    borderRadius: 20,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
                   }}
                 >
-                  {t("dash_balance")}
-                </h3>
+                  <ArrowUpRight size={14} /> 2.4%
+                </span>
+                <span
+                  style={{ color: "#94A3B8", fontSize: 13, fontWeight: 500 }}
+                >
+                  {t("dash_vs_last_month")}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: 16,
+                  marginTop: 40,
+                }}
+              >
+                {/* Income */}
                 <div
                   style={{
-                    fontSize: 40,
-                    fontWeight: 800,
-                    color: "#0A192F",
-                    margin: "0 0 16px",
-                    fontFamily: "'Manrope', sans-serif",
-                    letterSpacing: -1,
+                    background: "#F8FAFC",
+                    borderRadius: 16,
+                    padding: 20,
+                    transition: "all 0.2s",
+                    cursor: "default",
                   }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#F1F5F9")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "#F8FAFC")
+                  }
                 >
-                  {formatCurrency(totalBalance)}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span
+                  <div
                     style={{
-                      background: "#ECFDF5",
-                      color: "#10B981",
-                      padding: "4px 10px",
-                      borderRadius: 20,
-                      fontSize: 12,
-                      fontWeight: 700,
                       display: "flex",
                       alignItems: "center",
-                      gap: 4,
+                      gap: 8,
+                      margin: "0 0 8px",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 600,
                     }}
                   >
-                    <ArrowUpRight size={14} /> 2.4%
-                  </span>
-                  <span
-                    style={{ color: "#94A3B8", fontSize: 13, fontWeight: 500 }}
-                  >
-                    {t("dash_vs_last_month")}
-                  </span>
-                </div>
-
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 16,
-                    marginTop: 40,
-                  }}
-                >
-                  {/* Income */}
+                    <ArrowDownRight size={16} color="#10B981" />{" "}
+                    {t("dash_income")}
+                  </div>
                   <div
                     style={{
-                      background: "#F8FAFC",
-                      borderRadius: 16,
-                      padding: 20,
-                      transition: "all 0.2s",
-                      cursor: "default",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#F1F5F9")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "#F8FAFC")
-                    }
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        margin: "0 0 8px",
-                        color: "#64748B",
-                        fontSize: 13,
-                        fontWeight: 600,
-                      }}
-                    >
-                      <ArrowDownRight size={16} color="#10B981" />{" "}
-                      {t("dash_income")}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 20,
-                        fontWeight: 800,
-                        color: "#0A192F",
-                        fontFamily: "'Manrope', sans-serif",
-                      }}
-                    >
-                      {formatCurrency(totalIncome)}
-                    </div>
-                  </div>
-                  {/* Expenses */}
-                  <div
-                    style={{
-                      background: "#F8FAFC",
-                      borderRadius: 16,
-                      padding: 20,
-                      transition: "all 0.2s",
-                      cursor: "default",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = "#F1F5F9")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "#F8FAFC")
-                    }
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        margin: "0 0 8px",
-                        color: "#64748B",
-                        fontSize: 13,
-                        fontWeight: 600,
-                      }}
-                    >
-                      <ArrowUpRight size={16} color="#EF4444" />{" "}
-                      {t("dash_expenses")}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 20,
-                        fontWeight: 800,
-                        color: "#0A192F",
-                        fontFamily: "'Manrope', sans-serif",
-                      }}
-                    >
-                      {formatCurrency(totalExpenses)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Spending Trends Chart */}
-              <div
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 24,
-                  padding: 32,
-                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                  border: "1px solid #E2E8F0",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 32,
-                  }}
-                >
-                  <h3
-                    style={{
-                      margin: 0,
-                      fontSize: 16,
+                      fontSize: 20,
                       fontWeight: 800,
                       color: "#0A192F",
+                      fontFamily: "'Manrope', sans-serif",
                     }}
                   >
-                    {t("dash_trends")}
-                  </h3>
-                  <div style={{ position: "relative" }}>
-                    <button
-                      onClick={() => setShowTimeMenu(!showTimeMenu)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: "#64748B",
-                        background: "#F8FAFC",
-                        padding: "8px 14px",
-                        borderRadius: 8,
-                        border: "1px solid #E2E8F0",
-                        cursor: "pointer",
-                        transition: "all 0.2s",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#F1F5F9")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = "#F8FAFC")
-                      }
-                    >
-                      {timeRange === 30
-                        ? t("dash_last_30_days")
-                        : t("dash_last_7_days")}{" "}
-                      <ChevronDown size={14} />
-                    </button>
-                    {showTimeMenu && (
-                      <div
-                        style={{
-                          position: "absolute",
-                          top: "100%",
-                          [dir === "rtl" ? "left" : "right"]: 0,
-                          marginTop: 4,
-                          background: "#FFF",
-                          border: "1px solid #E2E8F0",
-                          borderRadius: 8,
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                          zIndex: 10,
-                        }}
-                      >
-                        <div
-                          onClick={() => {
-                            setTimeRange(7);
-                            setShowTimeMenu(false);
-                          }}
-                          style={{
-                            padding: "10px 16px",
-                            fontSize: 13,
-                            cursor: "pointer",
-                            borderBottom: "1px solid #E2E8F0",
-                            transition: "background 0.2s",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#F8FAFC")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "#FFF")
-                          }
-                        >
-                          {t("dash_last_7_days")}
-                        </div>
-                        <div
-                          onClick={() => {
-                            setTimeRange(30);
-                            setShowTimeMenu(false);
-                          }}
-                          style={{
-                            padding: "10px 16px",
-                            fontSize: 13,
-                            cursor: "pointer",
-                            transition: "background 0.2s",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#F8FAFC")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "#FFF")
-                          }
-                        >
-                          {t("dash_last_30_days")}
-                        </div>
-                      </div>
-                    )}
+                    {formatCurrency(totalIncome)}
                   </div>
                 </div>
-
-                <div style={{ height: 240, width: "100%", direction: "ltr" }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={chartData}
-                      margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
-                    >
-                      <XAxis
-                        dataKey="day"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{
-                          fill: "#94A3B8",
-                          fontSize: 12,
-                          fontFamily: "'Inter', 'Cairo', sans-serif",
-                        }}
-                        dy={10}
-                      />
-                      <RechartsTooltip
-                        cursor={{ fill: "#F8FAFC", radius: 4 }}
-                        contentStyle={{
-                          borderRadius: 12,
-                          border: "none",
-                          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-                          fontFamily: "'Inter', 'Cairo', sans-serif",
-                        }}
-                        formatter={(value) => [
-                          `${currencySymbol}${value.toLocaleString()}`,
-                          t("dash_expenses"),
-                        ]}
-                      />
-                      <Bar dataKey="spend" radius={[6, 6, 6, 6]}>
-                        {chartData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={entry.spend > 0 ? "#10B981" : "#DBEAFE"}
-                            style={{
-                              transition: "fill 0.2s",
-                              cursor: "pointer",
-                            }}
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
+                {/* Expenses */}
+                <div
+                  style={{
+                    background: "#F8FAFC",
+                    borderRadius: 16,
+                    padding: 20,
+                    transition: "all 0.2s",
+                    cursor: "default",
+                  }}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.background = "#F1F5F9")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.background = "#F8FAFC")
+                  }
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      margin: "0 0 8px",
+                      color: "#64748B",
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    <ArrowUpRight size={16} color="#EF4444" />{" "}
+                    {t("dash_expenses")}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 20,
+                      fontWeight: 800,
+                      color: "#0A192F",
+                      fontFamily: "'Manrope', sans-serif",
+                    }}
+                  >
+                    {formatCurrency(totalExpenses)}
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* Category Breakdown Chart */}
+            {/* Spending Trends Chart */}
+            <div
+              style={{
+                background: "#FFFFFF",
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                border: "1px solid #E2E8F0",
+              }}
+            >
               <div
                 style={{
-                  background: "#FFFFFF",
-                  borderRadius: 24,
-                  padding: 32,
-                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                  border: "1px solid #E2E8F0",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 32,
                 }}
               >
                 <h3
                   style={{
-                    margin: "0 0 24px",
+                    margin: 0,
                     fontSize: 16,
                     fontWeight: 800,
                     color: "#0A192F",
                   }}
                 >
-                  {t("dash_cat_breakdown")}
+                  {t("dash_trends")}
                 </h3>
+                <div style={{ position: "relative" }}>
+                  <button
+                    onClick={() => setShowTimeMenu(!showTimeMenu)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "#64748B",
+                      background: "#F8FAFC",
+                      padding: "8px 14px",
+                      borderRadius: 8,
+                      border: "1px solid #E2E8F0",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#F1F5F9")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "#F8FAFC")
+                    }
+                  >
+                    {timeRange === 30
+                      ? t("dash_last_30_days")
+                      : t("dash_last_7_days")}{" "}
+                    <ChevronDown size={14} />
+                  </button>
+                  {showTimeMenu && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        [dir === "rtl" ? "left" : "right"]: 0,
+                        marginTop: 4,
+                        background: "#FFF",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: 8,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                        zIndex: 10,
+                      }}
+                    >
+                      <div
+                        onClick={() => {
+                          setTimeRange(7);
+                          setShowTimeMenu(false);
+                        }}
+                        style={{
+                          padding: "10px 16px",
+                          fontSize: 13,
+                          cursor: "pointer",
+                          borderBottom: "1px solid #E2E8F0",
+                          transition: "background 0.2s",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "#F8FAFC")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "#FFF")
+                        }
+                      >
+                        {t("dash_last_7_days")}
+                      </div>
+                      <div
+                        onClick={() => {
+                          setTimeRange(30);
+                          setShowTimeMenu(false);
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "#F8FAFC")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "#FFF")
+                        }
+                      >
+                        {t("dash_last_30_days")}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
-                {catPieData.length > 0 ? (
+              <div style={{ height: 260, width: "100%", direction: "ltr" }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={chartData}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EF4444" stopOpacity={0.1} />
+                        <stop offset="95%" stopColor="#EF4444" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                    <XAxis
+                      dataKey="day"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{
+                        fill: "#94A3B8",
+                        fontSize: 12,
+                        fontFamily: "'Inter', 'Cairo', sans-serif",
+                      }}
+                      dy={10}
+                    />
+                    <YAxis hide />
+                    <RechartsTooltip
+                      contentStyle={{
+                        borderRadius: 16,
+                        border: "none",
+                        boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                        fontFamily: "'Inter', 'Cairo', sans-serif",
+                        padding: "12px 16px",
+                      }}
+                      cursor={{ stroke: '#E2E8F0', strokeWidth: 2 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="income"
+                      name={t("dash_income")}
+                      stroke="#10B981"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#colorIncome)"
+                      animationDuration={1500}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="spend"
+                      name={t("dash_expenses")}
+                      stroke="#EF4444"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#colorSpend)"
+                      animationDuration={1500}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Category Breakdown Chart */}
+            <div
+              style={{
+                background: "#FFFFFF",
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                border: "1px solid #E2E8F0",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 24px",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#0A192F",
+                }}
+              >
+                {t("dash_cat_breakdown")}
+              </h3>
+
+              {
+                catPieData.length > 0 ? (
                   <div
                     style={{
                       display: "flex",
@@ -850,438 +918,455 @@ export default function Dashboard() {
                   >
                     {t("dash_no_expenses")}
                   </div>
-                )}
-              </div>
-            </div>
+                )
+              }
+            </div >
+          </div >
 
-            {/* ── Side Column ── */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              {/* Smart Budget AI Card */}
+          {/* ── Side Column ── */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Smart Budget AI Card */}
+            <div
+              style={{
+                background: "#F0FDF4",
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                border: "1px solid #DCFCE7",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+              }}
+            >
               <div
                 style={{
-                  background: "#F0FDF4",
-                  borderRadius: 24,
-                  padding: 32,
-                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                  border: "1px solid #DCFCE7",
                   display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
+                  justifyContent: "space-between",
+                  width: "100%",
+                  alignItems: "flex-start",
+                  marginBottom: 24,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    width: "100%",
-                    alignItems: "flex-start",
-                    marginBottom: 24,
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        color: "#059669",
-                        fontSize: 14,
-                        fontWeight: 800,
-                      }}
-                    >
-                      <BrainCircuit size={18} /> {t("dash_budget_ai")}
-                    </div>
-                    <div
-                      style={{ color: "#0A192F", fontSize: 13, marginTop: 4 }}
-                    >
-                      {t("dash_daily_safe")}
-                    </div>
-                  </div>
-                </div>
-
-                {/* AI Radial Ring */}
-                <div
-                  style={{
-                    position: "relative",
-                    width: 160,
-                    height: 160,
-                    marginBottom: 20,
-                  }}
-                >
-                  <ResponsiveContainer
-                    width="100%"
-                    height="100%"
-                    style={{ direction: "ltr" }}
-                  >
-                    <PieChart>
-                      <Pie
-                        data={pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={75}
-                        startAngle={90}
-                        endAngle={-270}
-                        dataKey="value"
-                        stroke="none"
-                        cornerRadius={10}
-                        animationDuration={1000}
-                      >
-                        {pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                    </PieChart>
-                  </ResponsiveContainer>
+                <div>
                   <div
                     style={{
-                      position: "absolute",
-                      top: "50%",
-                      left: "50%",
-                      transform: "translate(-50%, -50%)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      color: "#059669",
+                      fontSize: 14,
+                      fontWeight: 800,
+                    }}
+                  >
+                    <BrainCircuit size={18} /> {t("dash_budget_ai")}
+                  </div>
+                  <div
+                    style={{ color: "#0A192F", fontSize: 13, marginTop: 4 }}
+                  >
+                    {t("dash_daily_safe")}
+                  </div>
+                </div>
+              </div>
+
+              {/* AI Radial Ring */}
+              <div
+                style={{
+                  position: "relative",
+                  width: 160,
+                  height: 160,
+                  marginBottom: 20,
+                }}
+              >
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  style={{ direction: "ltr" }}
+                >
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={75}
+                      startAngle={90}
+                      endAngle={-270}
+                      dataKey="value"
+                      stroke="none"
+                      cornerRadius={10}
+                      animationDuration={1000}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    left: "50%",
+                    transform: "translate(-50%, -50%)",
+                    textAlign: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 800,
+                      color: "#0A192F",
+                      fontFamily: "'Manrope', sans-serif",
+                    }}
+                  >
+                    {formatCurrency(remainingTotal)}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: "#64748B",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {t("dash_remaining_today")}
+                  </div>
+                </div>
+              </div>
+
+              <p
+                style={{
+                  textAlign: "center",
+                  color: remainingTotal <= 0 ? "#EF4444" : (budgetRatio > 0.8 ? "#EF4444" : "#0A192F"),
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                  margin: 0,
+                  fontWeight: (remainingTotal <= 0 || budgetRatio > 0.8) ? 600 : 400,
+                }}
+              >
+                {remainingTotal <= 0
+                  ? (lang === "ar" ? "لقد استهلكت كل رصيدك المتاح! يرجى مراجعة إنفاقك بعناية" : "You have consumed all your available balance! Please review your spending carefully.")
+                  : (budgetRatio > 0.8 ? t("dash_pacing_bad") : t("dash_pacing_good"))}
+              </p>
+            </div >
+
+            {/* Recent Transactions Card */}
+            <div
+              style={{
+                background: "#FFFFFF",
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                border: "1px solid #E2E8F0",
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 24,
+                }}
+              >
+                <h3
+                  style={{
+                    margin: 0,
+                    fontSize: 16,
+                    fontWeight: 800,
+                    color: "#0A192F",
+                  }}
+                >
+                  {t("dash_recent")}
+                </h3>
+                <button
+                  onClick={() => navigate("/transactions")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#10B981",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "'Inter', 'Cairo', sans-serif",
+                    transition: "opacity 0.2s",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.opacity = 0.7)}
+                  onMouseLeave={(e) => (e.currentTarget.style.opacity = 1)}
+                >
+                  {t("dash_view_all")}
+                </button>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 16,
+                  flex: 1,
+                }}
+              >
+                {displayTransactions.length === 0 ? (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: "32px 0",
                       textAlign: "center",
+                      flex: 1,
                     }}
                   >
                     <div
                       style={{
-                        fontSize: 24,
-                        fontWeight: 800,
-                        color: "#0A192F",
-                        fontFamily: "'Manrope', sans-serif",
+                        width: 64,
+                        height: 64,
+                        borderRadius: "50%",
+                        background: "#F1F5F9",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#94A3B8",
+                        marginBottom: 16,
                       }}
                     >
-                      {formatCurrency(remainingTotal)}
+                      <Wallet size={32} />
                     </div>
-                    <div
+                    <p
                       style={{
-                        fontSize: 10,
                         color: "#64748B",
-                        fontWeight: 600,
+                        fontSize: 14,
+                        fontWeight: 500,
+                        lineHeight: 1.6,
+                        maxWidth: 200,
                       }}
                     >
-                      {t("dash_remaining_today")}
-                    </div>
+                      {t("dash_empty_tx")}
+                    </p>
                   </div>
-                </div>
+                ) : (
+                  displayTransactions.slice(0, 4).map((tx) => {
+                    const catStyle =
+                      CAT_COLORS[tx.category] || CAT_COLORS.default;
+                    const IconComp = CAT_ICONS[tx.category] || Coins;
 
-                <p
-                  style={{
-                    textAlign: "center",
-                    color: budgetRatio > 0.8 ? "#EF4444" : "#0A192F",
-                    fontSize: 13,
-                    lineHeight: 1.6,
-                    margin: 0,
-                    fontWeight: budgetRatio > 0.8 ? 600 : 400,
-                  }}
-                >
-                  {budgetRatio > 0.8
-                    ? t("dash_pacing_bad")
-                    : t("dash_pacing_good")}
-                </p>
+                    return (
+                      <div
+                        key={tx.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 16,
+                          padding: "12px 0",
+                          borderBottom: "1px solid #F8FAFC",
+                          transition: "background 0.2s",
+                          borderRadius: 8,
+                          cursor: "default",
+                        }}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "#F8FAFC")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "transparent")
+                        }
+                      >
+                        <div
+                          style={{
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            background: catStyle.bg,
+                            color: catStyle.color,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <IconComp size={20} strokeWidth={2.5} />
+                        </div>
+                        <div style={{ flex: 1, overflow: "hidden" }}>
+                          <div
+                            style={{
+                              fontSize: 14,
+                              fontWeight: 700,
+                              color: "#0A192F",
+                              marginBottom: 2,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {tx.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: "#94A3B8",
+                              fontWeight: 500,
+                            }}
+                          >
+                            {t(`cat_${tx.category}`)} • {tx.date}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 15,
+                            fontWeight: 800,
+                            fontFamily: "'Manrope', sans-serif",
+                            color: tx.type === "expense" || tx.amount < 0 ? "#0A192F" : "#10B981",
+                          }}
+                        >
+                          {tx.type === "expense" || tx.amount < 0 ? "-" : "+"}
+                          {formatCurrency(Math.abs(tx.amount))}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
+            </div >
 
-              {/* Recent Transactions Card */}
-              <div
+            {/* Financial Goals Progress */}
+            < div
+              onClick={() => navigate("/goals")}
+              style={{
+                background: "#FFFFFF",
+                borderRadius: 24,
+                padding: 32,
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                border: "1px solid #E2E8F0",
+                cursor: "pointer",
+                transition: "transform 0.2s, box-shadow 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-4px)";
+                e.currentTarget.style.boxShadow = "0 15px 45px rgba(10,25,47,0.08)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow = "0 10px 40px rgba(10,25,47,0.03)";
+              }}
+            >
+              <h3
                 style={{
-                  background: "#FFFFFF",
-                  borderRadius: 24,
-                  padding: 32,
-                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                  border: "1px solid #E2E8F0",
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
+                  margin: "0 0 24px",
+                  fontSize: 16,
+                  fontWeight: 800,
+                  color: "#0A192F",
                 }}
+              >
+                {t("dash_financial_goals")}
+              </h3>
+
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
               >
                 <div
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    marginBottom: 24,
+                    marginBottom: 4,
                   }}
                 >
-                  <h3
+                  <span
                     style={{
-                      margin: 0,
-                      fontSize: 16,
-                      fontWeight: 800,
-                      color: "#0A192F",
-                    }}
-                  >
-                    {t("dash_recent")}
-                  </h3>
-                  <button
-                    onClick={() => navigate("/transactions")}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#10B981",
-                      fontSize: 13,
+                      fontSize: 14,
                       fontWeight: 700,
-                      cursor: "pointer",
-                      fontFamily: "'Inter', 'Cairo', sans-serif",
-                      transition: "opacity 0.2s",
+                      color: "#0A192F",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
                     }}
-                    onMouseEnter={(e) => (e.currentTarget.style.opacity = 0.7)}
-                    onMouseLeave={(e) => (e.currentTarget.style.opacity = 1)}
                   >
-                    {t("dash_view_all")}
-                  </button>
+                    <GoalIcon size={16} color="#64748B" />
+                    {mainGoal.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: "#10B981",
+                    }}
+                  >
+                    {goalProgress.toFixed(1)}%
+                  </span>
+                </div>
+
+                {/* Progress Bar Track */}
+                <div
+                  style={{
+                    width: "100%",
+                    height: 10,
+                    background: "#F1F5F9",
+                    borderRadius: 5,
+                    overflow: "hidden",
+                  }}
+                >
+                  {/* Progress Fill */}
+                  <div
+                    style={{
+                      width: `${goalProgress}%`,
+                      height: "100%",
+                      background: "#10B981",
+                      borderRadius: 5,
+                      transition: "width 1s ease-in-out",
+                    }}
+                  />
                 </div>
 
                 <div
                   style={{
                     display: "flex",
-                    flexDirection: "column",
-                    gap: 16,
-                    flex: 1,
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    marginTop: 8,
                   }}
                 >
-                  {filteredTxs.length === 0 ? (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "32px 0",
-                        textAlign: "center",
-                        flex: 1,
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 64,
-                          height: 64,
-                          borderRadius: "50%",
-                          background: "#F1F5F9",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#94A3B8",
-                          marginBottom: 16,
-                        }}
-                      >
-                        <Wallet size={32} />
-                      </div>
-                      <p
-                        style={{
-                          color: "#64748B",
-                          fontSize: 14,
-                          fontWeight: 500,
-                          lineHeight: 1.6,
-                          maxWidth: 200,
-                        }}
-                      >
-                        {t("dash_empty_tx")}
-                      </p>
-                    </div>
-                  ) : (
-                    filteredTxs.slice(0, 4).map((tx) => {
-                      const catStyle =
-                        CAT_COLORS[tx.category] || CAT_COLORS.default;
-                      const IconComp = CAT_ICONS[tx.category] || Coins;
-
-                      return (
-                        <div
-                          key={tx.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 16,
-                            padding: "12px 0",
-                            borderBottom: "1px solid #F8FAFC",
-                            transition: "background 0.2s",
-                            borderRadius: 8,
-                            cursor: "default",
-                          }}
-                          onMouseEnter={(e) =>
-                            (e.currentTarget.style.background = "#F8FAFC")
-                          }
-                          onMouseLeave={(e) =>
-                            (e.currentTarget.style.background = "transparent")
-                          }
-                        >
-                          <div
-                            style={{
-                              width: 44,
-                              height: 44,
-                              borderRadius: 12,
-                              background: catStyle.bg,
-                              color: catStyle.color,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0,
-                            }}
-                          >
-                            <IconComp size={20} strokeWidth={2.5} />
-                          </div>
-                          <div style={{ flex: 1, overflow: "hidden" }}>
-                            <div
-                              style={{
-                                fontSize: 14,
-                                fontWeight: 700,
-                                color: "#0A192F",
-                                marginBottom: 2,
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                              }}
-                            >
-                              {tx.name}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: 12,
-                                color: "#94A3B8",
-                                fontWeight: 500,
-                              }}
-                            >
-                              {t(`cat_${tx.category}`)} • {tx.date}
-                            </div>
-                          </div>
-                          <div
-                            style={{
-                              fontSize: 15,
-                              fontWeight: 800,
-                              fontFamily: "'Manrope', sans-serif",
-                              color: tx.amount < 0 ? "#0A192F" : "#10B981",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {tx.amount > 0 ? "+" : ""}
-                            {formatCurrency(tx.amount)}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* Financial Goals Progress */}
-              <div
-                style={{
-                  background: "#FFFFFF",
-                  borderRadius: 24,
-                  padding: 32,
-                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                  border: "1px solid #E2E8F0",
-                }}
-              >
-                <h3
-                  style={{
-                    margin: "0 0 24px",
-                    fontSize: 16,
-                    fontWeight: 800,
-                    color: "#0A192F",
-                  }}
-                >
-                  {t("dash_financial_goals")}
-                </h3>
-
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                >
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: 4,
+                      fontSize: 12,
+                      color: "#64748B",
+                      fontWeight: 600,
                     }}
                   >
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: "#0A192F",
-                      }}
-                    >
-                      {t(`goal_${goalKey}`)}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: "#10B981",
-                      }}
-                    >
-                      {goalProgress.toFixed(1)}%
+                    {t("dash_goal_saved")}:{" "}
+                    <span style={{ color: "#0A192F", fontWeight: 700 }}>
+                      {formatCurrency(savedAmount)}
                     </span>
                   </div>
-
-                  {/* Progress Bar Track */}
                   <div
                     style={{
-                      width: "100%",
-                      height: 10,
-                      background: "#F1F5F9",
-                      borderRadius: 5,
-                      overflow: "hidden",
+                      fontSize: 12,
+                      color: "#64748B",
+                      fontWeight: 600,
                     }}
                   >
-                    {/* Progress Fill */}
-                    <div
-                      style={{
-                        width: `${goalProgress}%`,
-                        height: "100%",
-                        background: "#10B981",
-                        borderRadius: 5,
-                        transition: "width 1s ease-in-out",
-                      }}
-                    />
-                  </div>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginTop: 8,
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748B",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {t("dash_goal_saved")}:{" "}
-                      <span style={{ color: "#0A192F", fontWeight: 700 }}>
-                        {formatCurrency(savedAmount)}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: "#64748B",
-                        fontWeight: 600,
-                      }}
-                    >
-                      {t("dash_goal_remaining")}:{" "}
-                      <span style={{ color: "#0A192F", fontWeight: 700 }}>
-                        {formatCurrency(
-                          Math.max(0, targetAmount - savedAmount),
-                        )}
-                      </span>
-                    </div>
+                    {t("dash_goal_remaining")}:{" "}
+                    <span style={{ color: "#0A192F", fontWeight: 700 }}>
+                      {formatCurrency(
+                        Math.max(0, targetAmount - savedAmount),
+                      )}
+                    </span>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
       <AddTransactionModal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        onSuccess={() => setTransactions(getTransactions())}
+        onSuccess={async () => {
+          const txData = await fetchTransactions();
+          setTransactions(Array.isArray(txData) ? txData : getTransactions());
+        }}
       />
-
       <style>{`
         .dashboard-grid {
           display: grid;
@@ -1291,7 +1376,10 @@ export default function Dashboard() {
         @media (max-width: 1024px) {
           .dashboard-grid { grid-template-columns: 1fr; }
         }
+        @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 0.3; } 100% { opacity: 0.6; } }
       `}</style>
-    </>
+    </div>
   );
 }
+
+

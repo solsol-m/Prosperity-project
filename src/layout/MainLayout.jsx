@@ -7,7 +7,10 @@ import { useLanguage } from "../context/LanguageContext";
 const SIDEBAR_WIDTH = 264;
 
 export default function MainLayout() {
-  const token = localStorage.getItem("auth_token");
+  const token =
+    localStorage.getItem("auth_token") ||
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
   const { dir } = useLanguage();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 

@@ -13,6 +13,8 @@ import {
   Plus,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { updateUserOnboardingProfile } from "../services/transactionService";
+import { createGoal } from "../services/goalService";
 
 export default function Onboarding() {
   const { t, dir } = useLanguage();
@@ -23,8 +25,10 @@ export default function Onboarding() {
   const [income, setIncome] = useState("");
   const [goal, setGoal] = useState("");
   const [customGoal, setCustomGoal] = useState("");
+  const [targetAmount, setTargetAmount] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState("");
+  const { lang } = useLanguage();
 
   const GOALS = [
     { id: "car", label: t("goal_car"), icon: Car },
@@ -56,16 +60,52 @@ export default function Onboarding() {
         setError(t("onb_err_custom"));
         return;
       }
+      if (!targetAmount || Number(targetAmount) <= 0) {
+        setError(lang === "ar" ? "الرجاء تحديد المبلغ المستهدف" : "Please set a target amount");
+        return;
+      }
     }
     setError("");
     setStep((s) => s + 1);
   };
 
-  const handleFinish = () => {
-    const finalGoal = goal === "other" ? customGoal.trim() : goal;
-    const data = { income: Number(income), goal: finalGoal, currency };
-    localStorage.setItem("userOnboardingData", JSON.stringify(data));
-    localStorage.setItem("onboardingComplete", "true");
+  const handleFinish = async () => {
+    const goalType = goal || "emergency";
+    const goalTitle = goal === "other" ? customGoal.trim() : t(`goal_${goal}`);
+    const finalTargetAmount = Number(targetAmount);
+    const data = {
+      income: Number(income),
+      goal: goalTitle,
+      goalType,
+      goalTitle,
+      targetAmount: finalTargetAmount,
+      currency,
+    };
+    const email = localStorage.getItem("auth_email") || "";
+    const dataKey = email ? `userOnboardingData_${email}` : "userOnboardingData";
+    const statusKey = email ? `onboardingComplete_${email}` : "onboardingComplete";
+    
+    localStorage.setItem(dataKey, JSON.stringify(data));
+    localStorage.setItem(statusKey, "true");
+
+    try {
+      await updateUserOnboardingProfile({
+        monthlyIncome: Number(income),
+        financialGoalType: goalType,
+        preferredCurrency: currency,
+      });
+
+      await createGoal({
+        name: goalTitle,
+        target: finalTargetAmount,
+        saved: 0,
+        category: goalType === "other" ? "other" : goalType,
+        dateEst: null,
+      });
+    } catch (apiError) {
+      console.warn("[Onboarding] Could not persist onboarding to API:", apiError?.message);
+    }
+
     navigate("/dashboard", { replace: true });
   };
 
@@ -459,6 +499,71 @@ export default function Onboarding() {
                         error && !customGoal.trim() ? "#EF4444" : "#E2E8F0";
                     }}
                   />
+                </div>
+              )}
+
+              {goal && (
+                <div
+                  style={{ position: "relative", marginBottom: error ? 8 : 32 }}
+                  className="animate-fadeIn"
+                >
+                  <label style={{ fontSize: 14, fontWeight: 700, color: "#0A192F", display: "block", marginBottom: 8, fontFamily: "'Inter', 'Cairo', sans-serif" }}>
+                    {lang === "ar" ? "حدد المبلغ المستهدف لهذا الهدف" : "Set the target amount for this goal"}
+                  </label>
+                  <div style={{ position: "relative" }}>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={targetAmount}
+                      onChange={(e) => {
+                        const englishNumbers = e.target.value.replace(
+                          /[٠-٩]/g,
+                          (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d),
+                        );
+                        if (/^\d*$/.test(englishNumbers)) {
+                          setTargetAmount(englishNumbers);
+                          setError("");
+                        }
+                      }}
+                      placeholder={lang === "ar" ? "مثال: 50000" : "e.g. 50000"}
+                      style={{
+                        width: "100%",
+                        padding:
+                          dir === "rtl"
+                            ? "16px 20px 16px 48px"
+                            : "16px 48px 16px 20px",
+                        fontSize: 16,
+                        fontWeight: 700,
+                        color: "#0A192F",
+                        background: "#F8FAFC",
+                        border: `2px solid ${error && !targetAmount ? "#EF4444" : "#E2E8F0"}`,
+                        borderRadius: 14,
+                        outline: "none",
+                        transition: "border-color 0.2s",
+                        boxSizing: "border-box",
+                        fontFamily: "'Inter', 'Cairo', sans-serif",
+                        direction: "ltr",
+                        textAlign: dir === "rtl" ? "right" : "left",
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "#10B981";
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor =
+                          error && !targetAmount ? "#EF4444" : "#E2E8F0";
+                      }}
+                    />
+                    <DollarSign
+                      size={20}
+                      color="#94A3B8"
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        [dir === "rtl" ? "left" : "right"]: 20,
+                        transform: "translateY(-50%)",
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
