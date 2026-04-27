@@ -99,6 +99,7 @@ const CAT_COLORS = {
 export default function Dashboard() {
   const { t, dir, lang } = useLanguage();
   const navigate = useNavigate();
+  const newTransactionLabel = t("dash_new_trans").replace(/^\s*\+\s*/, "");
   const token =
     localStorage.getItem("auth_token") ||
     localStorage.getItem("token") ||
@@ -151,41 +152,22 @@ export default function Dashboard() {
     return txDate >= pastDate && txDate <= now;
   });
 
-  // ── حساب الإجماليات ─────────────────────────────────────
-  // الإجماليات المحلية (احتياطِ للخريطة)
-  const localAddedIncome = transactions
+  // ── حساب الإجماليات يدوياً من دخل التسجيل + عمليات API ───────────
+  const monthlyIncome = Number(onboardingData.income || 0);
+  const txIncome = transactions
     .filter((t) => t.type === "income" || (t.type !== "expense" && t.amount > 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-  const localAddedExpenses = transactions
+  const txExpenses = transactions
     .filter((t) => t.type === "expense" || (t.type !== "income" && t.amount < 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-
-  const baseIncome = onboardingData.income ? Number(onboardingData.income) : 0;
-
-  // API يكسب الأولوية للإجماليات المعروضة، وإلا يُستخدم الحساب المحلي
-  const apiIncome = Number(apiSummary?.totalIncome ?? 0);
-  const apiExpenses = Number(apiSummary?.totalExpenses ?? 0);
-  const apiBalance = Number(apiSummary?.totalBalance ?? 0);
-  const shouldUseBaseIncomeFallback =
-    apiSummary && apiIncome === 0 && apiExpenses === 0 && apiBalance === 0 && baseIncome > 0;
-
-  const totalIncome = apiSummary
-    ? shouldUseBaseIncomeFallback
-      ? baseIncome
-      : apiIncome
-    : (baseIncome + localAddedIncome);
-  const totalExpenses = apiSummary ? apiExpenses : localAddedExpenses;
-  const totalBalance = apiSummary
-    ? shouldUseBaseIncomeFallback
-      ? Math.max(0, baseIncome - apiExpenses)
-      : apiBalance
-    : (totalIncome - totalExpenses);
+  const totalIncome = monthlyIncome + txIncome;
+  const totalExpenses = txExpenses;
+  const totalBalance = monthlyIncome + (txIncome - txExpenses);
 
   // المعاملات للعرض: API أولاً، ثم المحلية
-  const displayTransactions =
-    apiSummary?.recentTransactions?.length
-      ? apiSummary.recentTransactions
-      : transactions;
+  const displayTransactions = transactions.length
+    ? transactions
+    : (apiSummary?.recentTransactions || []);
 
   const fallbackGoalType = onboardingData.goalType || "emergency";
   const mainGoal = goals[0] || {
@@ -220,15 +202,24 @@ export default function Dashboard() {
     });
   }
 
-  // AI Budget Data (Overall instead of just Daily)
-  const spentTotal = totalExpenses;
-  const remainingTotal = Math.max(0, totalIncome - totalExpenses);
-  const budgetRatio = totalIncome > 0 ? spentTotal / totalIncome : 0;
-  const budgetColor = budgetRatio > 0.8 ? "#EF4444" : "#10B981";
+  // AI Budget Circle (manual frontend logic)
+  const today = new Date();
+  const daysInMonth = new Date(
+    today.getFullYear(),
+    today.getMonth() + 1,
+    0,
+  ).getDate();
+  const daysRemaining = Math.max(1, daysInMonth - today.getDate() + 1);
+  const monthlyRemaining = totalIncome - totalExpenses;
+  const aiDailyBudget = monthlyRemaining / daysRemaining;
+  const budgetRatio = totalIncome > 0 ? totalExpenses / totalIncome : 0;
+  const spentPercent = Math.min(100, Math.max(0, budgetRatio * 100));
+  const remainingPercent = Math.max(0, 100 - spentPercent);
+  const budgetColor = spentPercent > 80 ? "#EF4444" : "#10B981";
 
   const pieData = [
-    { name: "Spent", value: spentTotal, color: budgetColor },
-    { name: "Remaining", value: remainingTotal, color: "#F1F5F9" },
+    { name: "Spent", value: spentPercent, color: budgetColor },
+    { name: "Remaining", value: remainingPercent, color: "#F1F5F9" },
   ];
 
   const formatCurrency = (val) => {
@@ -367,7 +358,7 @@ export default function Dashboard() {
           }}
         >
           {dir === "rtl" ? <Plus size={18} /> : null}
-          {t("dash_new_trans")}
+          {newTransactionLabel}
           {dir === "ltr" ? <Plus size={18} /> : null}
         </button>
       </div>
@@ -1019,7 +1010,7 @@ export default function Dashboard() {
                       fontFamily: "'Manrope', sans-serif",
                     }}
                   >
-                    {formatCurrency(remainingTotal)}
+                    {formatCurrency(aiDailyBudget)}
                   </div>
                   <div
                     style={{
@@ -1036,14 +1027,14 @@ export default function Dashboard() {
               <p
                 style={{
                   textAlign: "center",
-                  color: remainingTotal <= 0 ? "#EF4444" : (budgetRatio > 0.8 ? "#EF4444" : "#0A192F"),
+                  color: monthlyRemaining <= 0 ? "#EF4444" : (budgetRatio > 0.8 ? "#EF4444" : "#0A192F"),
                   fontSize: 13,
                   lineHeight: 1.6,
                   margin: 0,
-                  fontWeight: (remainingTotal <= 0 || budgetRatio > 0.8) ? 600 : 400,
+                  fontWeight: (monthlyRemaining <= 0 || budgetRatio > 0.8) ? 600 : 400,
                 }}
               >
-                {remainingTotal <= 0
+                {monthlyRemaining <= 0
                   ? (lang === "ar" ? "لقد استهلكت كل رصيدك المتاح! يرجى مراجعة إنفاقك بعناية" : "You have consumed all your available balance! Please review your spending carefully.")
                   : (budgetRatio > 0.8 ? t("dash_pacing_bad") : t("dash_pacing_good"))}
               </p>

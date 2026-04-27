@@ -6,8 +6,7 @@
  */
 
 import api from './api';
-import { getAuthToken } from './authService';
-import { getOnboardingData } from './transactionService';
+import { getAuthToken, getCurrentEmail } from './authService';
 
 // ── Normalize API goal → local format ───────────────────────
 function normalizeGoal(g) {
@@ -47,31 +46,10 @@ function getAuthConfig() {
   };
 }
 
-function getInitialGoalPayload() {
-  const onboarding = getOnboardingData();
-  const rawGoal =
-    onboarding.goalType ||
-    onboarding.goal ||
-    onboarding.financialGoal ||
-    'emergency';
-  const mappedGoal = ['emergency', 'car', 'travel', 'home', 'other'].includes(rawGoal)
-    ? rawGoal
-    : 'other';
-  const title =
-    onboarding.goalTitle ||
-    onboarding.goal ||
-    onboarding.financialGoal ||
-    'Emergency Fund';
-  const targetAmount = Number(onboarding.targetAmount) || 50000;
-
-  return {
-    title,
-    targetAmount,
-    currentAmount: 0,
-    category: mappedGoal,
-    priority: 'high',
-    deadline: defaultDeadline(),
-  };
+function clearInitialGoalFromBrowser() {
+  const email = getCurrentEmail();
+  const keys = ['user_goals', email ? `user_goals_${email}` : null].filter(Boolean);
+  keys.forEach((key) => localStorage.removeItem(key));
 }
 
 // ── GET all goals ────────────────────────────────────────────
@@ -79,18 +57,8 @@ export async function fetchGoals() {
   try {
     const { data } = await api.get('/api/Goal', getAuthConfig());
     if (Array.isArray(data)) {
-      let normalized = data.map(normalizeGoal);
-      if (normalized.length === 0) {
-        try {
-          const initialGoalPayload = getInitialGoalPayload();
-          await api.post('/api/Goal', initialGoalPayload, getAuthConfig());
-          const refreshed = await api.get('/api/Goal', getAuthConfig());
-          normalized = Array.isArray(refreshed.data) ? refreshed.data.map(normalizeGoal) : [];
-        } catch (bootstrapErr) {
-          console.warn('[GoalService] bootstrap initial goal failed:', bootstrapErr.message);
-        }
-      }
-      return normalized;
+      clearInitialGoalFromBrowser();
+      return data.map(normalizeGoal);
     }
     throw new Error('Invalid response');
   } catch (err) {

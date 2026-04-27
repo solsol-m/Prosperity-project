@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Globe, Check } from "lucide-react";
+import { Globe, Check, Eye, EyeOff } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { registerUser } from "../services/authService";
 import logoImg from "../assets/logo.png";
@@ -90,8 +90,8 @@ export default function Register() {
   const [monthlyIncome] = useState(0);
   const [monthlyExpenses] = useState(0);
   const [financialGoal] = useState("Emergency Fund");
-  const [showPass] = useState(false);
-  const [showConfirm] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
@@ -148,7 +148,19 @@ export default function Register() {
         ) {
           setErrors({ email: apiErr });
         } else {
-          setErrors({ auth: apiErr || "فشل إنشاء الحساب، حاول مرة أخرى." });
+          const normalizedError = apiErr.toLowerCase();
+          const readablePasswordHint =
+            normalizedError.includes("lowercase") ||
+            normalizedError.includes("uppercase") ||
+            normalizedError.includes("non alphanumeric") ||
+            normalizedError.includes("digit")
+              ? lang === "ar"
+                ? "كلمة المرور يجب أن تحتوي على حرف إنجليزي صغير وحرف كبير ورقم ورمز خاص مثل !@#"
+                : "Password must include at least one English lowercase, uppercase, number, and special character."
+              : apiErr;
+          setErrors({
+            auth: readablePasswordHint || "فشل إنشاء الحساب، حاول مرة أخرى.",
+          });
         }
       }
     } catch {
@@ -160,7 +172,7 @@ export default function Register() {
 
   return (
     <div
-      className="min-h-screen flex w-full bg-[#FFFFFF]"
+      className="min-h-screen flex w-full bg-[#FFFFFF] auth-main-container"
       style={{ direction: dir, fontFamily: font.body }}
     >
       <div
@@ -267,8 +279,8 @@ export default function Register() {
         </div>
 
         {/* Form Panel (40% Desktop, 100% Mobile) */}
-        <div className="flex-1 w-full lg:w-[40%] flex items-center justify-center p-6 lg:p-12 relative bg-white">
-          <div className="w-full max-w-[450px] flex flex-col justify-center relative min-h-[500px]">
+        <div className="flex-1 w-full lg:w-[40%] flex items-center justify-center p-6 lg:p-12 relative bg-white auth-form-panel">
+          <div className="w-full max-w-[450px] flex flex-col justify-center relative min-h-[500px] auth-form-inner">
             {/* Language Toggle */}
             <button
               type="button"
@@ -513,7 +525,7 @@ export default function Register() {
                       placeholder={t("password_placeholder")}
                       style={{
                         width: "100%",
-                        padding: "12px 16px",
+                        padding: "12px 16px 12px 42px",
                         boxSizing: "border-box",
                         fontSize: 14,
                         color: "#0A192F",
@@ -534,6 +546,35 @@ export default function Register() {
                           : "#E2E8F0";
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((s) => !s)}
+                      aria-label={
+                        showPass
+                          ? lang === "ar"
+                            ? "إخفاء كلمة المرور"
+                            : "Hide password"
+                          : lang === "ar"
+                            ? "إظهار كلمة المرور"
+                            : "Show password"
+                      }
+                      style={{
+                        position: "absolute",
+                        left: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        border: "none",
+                        background: "transparent",
+                        color: "#64748B",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 2,
+                      }}
+                    >
+                      {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                   <StrengthBar password={password} font={font} t={t} />
                 </div>
@@ -563,7 +604,7 @@ export default function Register() {
                       placeholder={t("confirm_password_placeholder")}
                       style={{
                         width: "100%",
-                        padding: "12px 16px",
+                        padding: "12px 16px 12px 42px",
                         boxSizing: "border-box",
                         fontSize: 14,
                         color: "#0A192F",
@@ -584,6 +625,35 @@ export default function Register() {
                           : "#E2E8F0";
                       }}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((s) => !s)}
+                      aria-label={
+                        showConfirm
+                          ? lang === "ar"
+                            ? "إخفاء تأكيد كلمة المرور"
+                            : "Hide confirm password"
+                          : lang === "ar"
+                            ? "إظهار تأكيد كلمة المرور"
+                            : "Show confirm password"
+                      }
+                      style={{
+                        position: "absolute",
+                        left: 10,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        border: "none",
+                        background: "transparent",
+                        color: "#64748B",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: 2,
+                      }}
+                    >
+                      {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -635,6 +705,21 @@ export default function Register() {
           </div>
         </div>
       </div>
+      <style>{`
+        @media (max-width: 1023px) {
+          .auth-main-container {
+            padding-inline: 1.5rem;
+          }
+          .auth-form-panel {
+            padding-inline: 0 !important;
+          }
+          .auth-form-inner {
+            width: 100%;
+            max-width: 450px;
+            margin-inline: auto;
+          }
+        }
+      `}</style>
     </div>
   );
 }

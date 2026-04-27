@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "../context/LanguageContext";
 import { fetchGoals, createGoal, modifyGoal, removeGoal } from "../services/goalService";
@@ -59,13 +59,47 @@ export default function Goals() {
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const pickSingleInitialGoal = useCallback((list) => {
+    if (!Array.isArray(list) || list.length === 0) return [];
+
+    const onboardingGoalType = String(onboardingData.goalType || onboardingData.goal || "")
+      .trim()
+      .toLowerCase();
+    const onboardingGoalTitle = String(onboardingData.goalTitle || onboardingData.goal || "")
+      .trim()
+      .toLowerCase();
+
+    const matchedByOnboarding = list.find((g) => {
+      const gCategory = String(g?.category || "").trim().toLowerCase();
+      const gName = String(g?.name || "").trim().toLowerCase();
+      const categoryMatches = onboardingGoalType && gCategory === onboardingGoalType;
+      const titleMatches = onboardingGoalTitle && gName === onboardingGoalTitle;
+      return categoryMatches || titleMatches;
+    });
+
+    if (matchedByOnboarding) return [matchedByOnboarding];
+
+    // If onboarding mapping is unavailable, collapse duplicate goals and keep first.
+    const deduped = list.filter((goal, index, arr) => {
+      const key = `${String(goal?.name || "").trim().toLowerCase()}|${String(goal?.category || "").trim().toLowerCase()}|${Number(goal?.target || 0)}`;
+      return (
+        arr.findIndex((g) => {
+          const k = `${String(g?.name || "").trim().toLowerCase()}|${String(g?.category || "").trim().toLowerCase()}|${Number(g?.target || 0)}`;
+          return k === key;
+        }) === index
+      );
+    });
+
+    return deduped.length > 0 ? [deduped[0]] : [];
+  }, [onboardingData.goalType, onboardingData.goal, onboardingData.goalTitle]);
+
   useEffect(() => {
     let cancelled = false;
 
     // جلب الأهداف من الـ API أو اللوكال
     fetchGoals().then((loadedGoals) => {
       if (!cancelled) {
-        setGoals(loadedGoals);
+        setGoals(pickSingleInitialGoal(loadedGoals));
         setTimeout(() => {
           setIsLoading(false);
           setTimeout(() => setIsMounted(true), 100);
@@ -74,7 +108,7 @@ export default function Goals() {
     });
 
     return () => { cancelled = true; };
-  }, []);
+  }, [pickSingleInitialGoal]);
 
   const formatCurrency = (val) => {
     return new Intl.NumberFormat(lang === "ar" ? "ar-EG" : "en-US", {
@@ -122,7 +156,7 @@ export default function Goals() {
       goalData.saved = 0;
       updatedGoals = await createGoal(goalData);
     }
-    setGoals(updatedGoals);
+    setGoals(pickSingleInitialGoal(updatedGoals));
     setShowModal(false);
     setEditGoal(null);
     setDateEst(null);
@@ -140,14 +174,14 @@ export default function Goals() {
       ...addFundsGoal,
       saved: (addFundsGoal.saved || 0) + amount,
     });
-    setGoals(updatedGoals);
+    setGoals(pickSingleInitialGoal(updatedGoals));
     setTotalBalance((prev) => prev - amount);
     setAddFundsGoal(null);
   };
 
   const handleDeleteGoal = async (id) => {
     const updatedGoals = await removeGoal(id);
-    setGoals(updatedGoals);
+    setGoals(pickSingleInitialGoal(updatedGoals));
     setGoalToDelete(null);
   };
 
@@ -210,14 +244,30 @@ export default function Goals() {
           ))}
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
-            gap: 24,
-          }}
-        >
-          {goals.map((goal) => {
+        goals.length === 0 ? (
+          <div
+            style={{
+              background: "#FFFFFF",
+              border: "1px solid #E2E8F0",
+              borderRadius: 20,
+              padding: "48px 24px",
+              textAlign: "center",
+              color: "#64748B",
+              fontSize: 15,
+              fontWeight: 600,
+            }}
+          >
+            {lang === "ar" ? "لا توجد أهداف" : "No goals found"}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+              gap: 24,
+            }}
+          >
+            {goals.map((goal) => {
           const Icon = GOAL_ICONS[goal.category] || Target;
           const progress = Math.min(100, Math.max(0, (goal.saved / goal.target) * 100));
           const color = getProgressColor(progress);
@@ -356,8 +406,9 @@ export default function Goals() {
               </div>
             </div>
           );
-        })}
-      </div>
+          })}
+          </div>
+        )
       )}
 
       {/* Add Goal Modal */}

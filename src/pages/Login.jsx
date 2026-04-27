@@ -61,7 +61,7 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex w-full bg-[#FFFFFF]"
+      className="min-h-screen flex w-full bg-[#FFFFFF] auth-main-container"
       style={{ direction: dir, fontFamily: font.body }}
     >
       <div
@@ -168,8 +168,8 @@ export default function Login() {
         </div>
 
         {/* Form Panel (40% Desktop, 100% Mobile) */}
-        <div className="flex-1 w-full lg:w-[40%] flex items-center justify-center p-6 lg:p-12 relative bg-white">
-          <div className="w-full max-w-[450px] flex flex-col justify-center relative min-h-[500px]">
+        <div className="flex-1 w-full lg:w-[40%] flex items-center justify-center p-6 lg:p-12 relative bg-white auth-form-panel">
+          <div className="w-full max-w-[450px] flex flex-col justify-center relative min-h-[500px] auth-form-inner">
             {/* Language Toggle */}
             <button
               type="button"
@@ -460,6 +460,21 @@ export default function Login() {
           </div>
         </div>
       </div>
+      <style>{`
+        @media (max-width: 1023px) {
+          .auth-main-container {
+            padding-inline: 1.5rem;
+          }
+          .auth-form-panel {
+            padding-inline: 0 !important;
+          }
+          .auth-form-inner {
+            width: 100%;
+            max-width: 450px;
+            margin-inline: auto;
+          }
+        }
+      `}</style>
     </div>
   );
 }
