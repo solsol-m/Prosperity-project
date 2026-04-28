@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Loader2,
   Mail,
+  Save,
   ShieldAlert,
   ShieldCheck,
   Sparkles,
@@ -237,7 +238,16 @@ export default function Profile() {
   const displayGoalType = profile?.goalType || profile?.goal || "emergency";
 
   const displayGoals = useMemo(() => {
-    if (goals.length > 0) return goals;
+    if (goals.length > 0) {
+      const priorityScore = { high: 3, medium: 2, low: 1 };
+      const topGoal = [...goals].sort((a, b) => {
+        const aScore = priorityScore[String(a?.priority || "").toLowerCase()] || 0;
+        const bScore = priorityScore[String(b?.priority || "").toLowerCase()] || 0;
+        if (aScore !== bScore) return bScore - aScore;
+        return Number(b?.target || 0) - Number(a?.target || 0);
+      })[0];
+      return topGoal ? [topGoal] : [];
+    }
     if (!profile?.goalTitle && !profile?.targetAmount) return [];
 
     return [
@@ -256,6 +266,8 @@ export default function Profile() {
 
   const incomeValue = parseIncomeValue(incomeInput);
   const isIncomeInvalid = incomeInput.trim().length > 0 && incomeValue === null;
+  const normalizedCurrentIncome = numberFormatter.format(Number(profile?.income || 0));
+  const isIncomeEdited = incomeInput.trim().length > 0 && incomeInput !== normalizedCurrentIncome;
 
   const statCards = [
     {
@@ -932,119 +944,14 @@ export default function Profile() {
                         boxShadow: "0 8px 18px rgba(16,185,129,0.18)",
                       }}
                     >
-                      {isSavingIncome ? <Loader2 size={18} style={{ animation: "spin 0.9s linear infinite" }} /> : <ArrowUpRight size={18} />}
+                      {isSavingIncome ? (
+                        <Loader2 size={18} style={{ animation: "spin 0.9s linear infinite" }} />
+                      ) : isIncomeEdited ? (
+                        <Save size={18} />
+                      ) : (
+                        <ArrowUpRight size={18} />
+                      )}
                       <span>{lang === "ar" ? "حفظ الدخل الشهري" : "Save monthly income"}</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    background: "#FFFFFF",
-                    borderRadius: 24,
-                    padding: 32,
-                    boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
-                    border: "1px solid #E2E8F0",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 16,
-                        background: "#EFF6FF",
-                        color: "#2563EB",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Wallet size={22} />
-                    </div>
-                    <div>
-                      <h3
-                        style={{
-                          margin: "0 0 4px",
-                          fontSize: 18,
-                          fontWeight: 800,
-                          color: "#0A192F",
-                          fontFamily: "'Manrope', 'Cairo', sans-serif",
-                        }}
-                      >
-                        {lang === "ar" ? "العملة المفضلة" : "Preferred Currency"}
-                      </h3>
-                      <p style={{ margin: 0, fontSize: 13, color: "#64748B", lineHeight: 1.6 }}>
-                        {lang === "ar"
-                          ? "عند تغييرها يتم تحديث تنسيق المبالغ في كامل الموقع فوراً."
-                          : "Changing it updates money formatting across the site immediately."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <div style={{ position: "relative" }}>
-                      <select
-                        value={selectedCurrency}
-                        onChange={(e) => setSelectedCurrency(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "16px 18px",
-                          borderRadius: 16,
-                          border: "1px solid #E2E8F0",
-                          background: "#F8FAFC",
-                          outline: "none",
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: "#0A192F",
-                          appearance: "none",
-                          cursor: "pointer",
-                        }}
-                      >
-                        {CURRENCY_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {lang === "ar"
-                              ? `${option.labelAr} (${option.symbol})`
-                              : `${option.labelEn} (${option.symbol})`}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown
-                        size={18}
-                        color="#94A3B8"
-                        style={{
-                          position: "absolute",
-                          top: "50%",
-                          [dir === "rtl" ? "left" : "right"]: 16,
-                          transform: "translateY(-50%)",
-                          pointerEvents: "none",
-                        }}
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleUpdateCurrency}
-                      disabled={isSavingCurrency || selectedCurrency === currency}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 10,
-                        background: isSavingCurrency || selectedCurrency === currency ? "#BFDBFE" : "#2563EB",
-                        color: "#FFFFFF",
-                        border: "none",
-                        borderRadius: 16,
-                        padding: "14px 18px",
-                        fontSize: 15,
-                        fontWeight: 700,
-                        cursor: isSavingCurrency || selectedCurrency === currency ? "not-allowed" : "pointer",
-                        transition: "all 0.2s ease",
-                        boxShadow: "0 8px 18px rgba(37,99,235,0.16)",
-                      }}
-                    >
-                      {isSavingCurrency ? <Loader2 size={18} style={{ animation: "spin 0.9s linear infinite" }} /> : <ArrowUpRight size={18} />}
-                      <span>{lang === "ar" ? "حفظ العملة المفضلة" : "Save preferred currency"}</span>
                     </button>
                   </div>
                 </div>
@@ -1260,6 +1167,117 @@ export default function Profile() {
                       })}
                     </motion.div>
                   )}
+                </div>
+
+                <div
+                  style={{
+                    background: "#FFFFFF",
+                    borderRadius: 24,
+                    padding: 32,
+                    boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                    border: "1px solid #E2E8F0",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 16,
+                        background: "#EFF6FF",
+                        color: "#2563EB",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Wallet size={22} />
+                    </div>
+                    <div>
+                      <h3
+                        style={{
+                          margin: "0 0 4px",
+                          fontSize: 18,
+                          fontWeight: 800,
+                          color: "#0A192F",
+                          fontFamily: "'Manrope', 'Cairo', sans-serif",
+                        }}
+                      >
+                        {lang === "ar" ? "العملة المفضلة" : "Preferred Currency"}
+                      </h3>
+                      <p style={{ margin: 0, fontSize: 13, color: "#64748B", lineHeight: 1.6 }}>
+                        {lang === "ar"
+                          ? "عند تغييرها يتم تحديث تنسيق المبالغ في كامل الموقع فوراً."
+                          : "Changing it updates money formatting across the site immediately."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ position: "relative" }}>
+                      <select
+                        value={selectedCurrency}
+                        onChange={(e) => setSelectedCurrency(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "16px 18px",
+                          borderRadius: 16,
+                          border: "1px solid #E2E8F0",
+                          background: "#F8FAFC",
+                          outline: "none",
+                          fontSize: 15,
+                          fontWeight: 700,
+                          color: "#0A192F",
+                          appearance: "none",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {CURRENCY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {lang === "ar"
+                              ? `${option.labelAr} (${option.symbol})`
+                              : `${option.labelEn} (${option.symbol})`}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown
+                        size={18}
+                        color="#94A3B8"
+                        style={{
+                          position: "absolute",
+                          top: "50%",
+                          [dir === "rtl" ? "left" : "right"]: 16,
+                          transform: "translateY(-50%)",
+                          pointerEvents: "none",
+                        }}
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleUpdateCurrency}
+                      disabled={isSavingCurrency || selectedCurrency === currency}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 10,
+                        background: isSavingCurrency || selectedCurrency === currency ? "#BFDBFE" : "#2563EB",
+                        color: "#FFFFFF",
+                        border: "none",
+                        borderRadius: 16,
+                        padding: "14px 18px",
+                        fontSize: 15,
+                        fontWeight: 700,
+                        cursor: isSavingCurrency || selectedCurrency === currency ? "not-allowed" : "pointer",
+                        transition: "all 0.2s ease",
+                        boxShadow: "0 8px 18px rgba(37,99,235,0.16)",
+                      }}
+                    >
+                      {isSavingCurrency ? <Loader2 size={18} style={{ animation: "spin 0.9s linear infinite" }} /> : <ArrowUpRight size={18} />}
+                      <span>{lang === "ar" ? "حفظ العملة المفضلة" : "Save preferred currency"}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

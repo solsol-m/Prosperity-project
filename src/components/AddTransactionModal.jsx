@@ -68,6 +68,7 @@ export default function AddTransactionModal({
     category: "",
     date: new Date().toISOString().split("T")[0],
   });
+  const [errors, setErrors] = useState({ amount: false, category: false });
 
   // Fetch Categories dynamically (Mock API)
   useEffect(() => {
@@ -112,29 +113,16 @@ export default function AddTransactionModal({
             ...prev,
             name: "",
             amount: "",
+            category: "",
             date: new Date().toISOString().split("T")[0],
           }));
+          setErrors({ amount: false, category: false });
         }
       }, 0);
 
       return () => clearTimeout(initTimer);
     }
   }, [editData, isOpen, categories]);
-
-  // Ensure default category is selected if none is set
-  useEffect(() => {
-    if (!isLoadingCats && !editData && !newTx.category) {
-      const catTimer = setTimeout(() => {
-        setNewTx((prev) => ({
-          ...prev,
-          category: getCategoryKey(
-            prev.type === "income" ? categories.income[0] : categories.expense[0],
-          ),
-        }));
-      }, 0);
-      return () => clearTimeout(catTimer);
-    }
-  }, [isLoadingCats, newTx.type, editData, newTx.category, categories]);
 
   // Handle body scroll lock
   useEffect(() => {
@@ -164,7 +152,10 @@ export default function AddTransactionModal({
   if (!isOpen) return null;
 
   async function handleSave() {
-    if (!newTx.name || !newTx.amount) return;
+    const amountMissing = !String(newTx.amount || "").trim();
+    const categoryMissing = !String(newTx.category || "").trim();
+    setErrors({ amount: amountMissing, category: categoryMissing });
+    if (!newTx.name || amountMissing || categoryMissing) return;
 
     const isIncome = newTx.type === "income";
     const amountVal = parseFloat(newTx.amount);
@@ -308,7 +299,7 @@ export default function AddTransactionModal({
                   setNewTx({
                     ...newTx,
                     type: "expense",
-                    category: getCategoryKey(categories.expense[0]),
+                    category: "",
                   })
                 }
                 style={{ accentColor: "#10B981", width: 18, height: 18 }}
@@ -333,7 +324,7 @@ export default function AddTransactionModal({
                   setNewTx({
                     ...newTx,
                     type: "income",
-                    category: getCategoryKey(categories.income[0]),
+                    category: "",
                   })
                 }
                 style={{ accentColor: "#10B981", width: 18, height: 18 }}
@@ -392,23 +383,40 @@ export default function AddTransactionModal({
             <input
               type="number"
               value={newTx.amount}
-              onChange={(e) => setNewTx({ ...newTx, amount: e.target.value })}
+              onChange={(e) => {
+                setNewTx({ ...newTx, amount: e.target.value });
+                if (errors.amount) setErrors((prev) => ({ ...prev, amount: false }));
+              }}
               placeholder={t("dash_amount_placeholder")}
               style={{
                 width: "100%",
                 padding: "14px 16px",
                 borderRadius: 14,
-                border: "1px solid #E2E8F0",
+                border: errors.amount ? "1px solid #EF4444" : "1px solid #E2E8F0",
                 outline: "none",
                 fontSize: 15,
                 fontFamily: "inherit",
                 boxSizing: "border-box",
                 textAlign: dir === "rtl" ? "right" : "left",
-                background: "#FBFDFF",
+                background: errors.amount ? "#FEF2F2" : "#FBFDFF",
               }}
               onFocus={(e) => (e.target.style.borderColor = "#10B981")}
-              onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+              onBlur={(e) => {
+                e.target.style.borderColor = errors.amount ? "#EF4444" : "#E2E8F0";
+              }}
             />
+            {errors.amount ? (
+              <div
+                style={{
+                  marginTop: 6,
+                  fontSize: 12,
+                  color: "#EF4444",
+                  fontWeight: 600,
+                }}
+              >
+                {lang === "ar" ? "المبلغ مطلوب" : "Amount is required"}
+              </div>
+            ) : null}
           </div>
 
           <div
@@ -437,10 +445,12 @@ export default function AddTransactionModal({
                   width: "100%",
                   padding: "14px 16px",
                   borderRadius: 14,
-                  border: showCatDropdown
+                  border: errors.category
+                    ? "1px solid #EF4444"
+                    : showCatDropdown
                     ? "1px solid #10B981"
                     : "1px solid #E2E8F0",
-                  background: "#FBFDFF",
+                  background: errors.category ? "#FEF2F2" : "#FBFDFF",
                   cursor: "pointer",
                   boxSizing: "border-box",
                 }}
@@ -484,7 +494,9 @@ export default function AddTransactionModal({
                         color: "#0A192F",
                       }}
                     >
-                      {newTx.category ? t(`cat_${newTx.category}`) : ""}
+                      {newTx.category
+                        ? t(`cat_${newTx.category}`)
+                        : (lang === "ar" ? "اختر التصنيف" : "Select category")}
                     </span>
                   </div>
                 )}
@@ -525,6 +537,7 @@ export default function AddTransactionModal({
                         key={cat.id || catKey}
                         onClick={() => {
                           setNewTx({ ...newTx, category: catKey });
+                          if (errors.category) setErrors((prev) => ({ ...prev, category: false }));
                           setShowCatDropdown(false);
                         }}
                         style={{
@@ -582,6 +595,18 @@ export default function AddTransactionModal({
                   })}
                 </div>
               )}
+              {errors.category ? (
+                <div
+                  style={{
+                    marginTop: 6,
+                    fontSize: 12,
+                    color: "#EF4444",
+                    fontWeight: 600,
+                  }}
+                >
+                  {lang === "ar" ? "التصنيف مطلوب" : "Category is required"}
+                </div>
+              ) : null}
             </div>
 
             <div>
