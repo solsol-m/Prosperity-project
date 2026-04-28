@@ -1082,11 +1082,6 @@ export default function Profile() {
                       >
                         {lang === "ar" ? "إدارة الأهداف" : "Goals Overview"}
                       </h3>
-                      <p style={{ margin: 0, fontSize: 13, color: "#64748B" }}>
-                        {lang === "ar"
-                          ? "عرض متناسق لأهدافك الحالية بدون أدوات تحرير داخل الكروت."
-                          : "A clean, consistent view of your current goals without inline edit controls."}
-                      </p>
                     </div>
                   </div>
 
@@ -1103,11 +1098,6 @@ export default function Profile() {
                       <Target size={34} color="#94A3B8" style={{ marginBottom: 14 }} />
                       <div style={{ fontSize: 16, fontWeight: 700, color: "#0A192F", marginBottom: 6 }}>
                         {lang === "ar" ? "لا توجد أهداف محفوظة بعد" : "No saved goals yet"}
-                      </div>
-                      <div style={{ fontSize: 13, color: "#64748B", lineHeight: 1.6 }}>
-                        {lang === "ar"
-                          ? "عند إنشاء هدف جديد سيظهر هنا بنفس تنسيق بقية الواجهة."
-                          : "Once you create a goal, it will appear here with the same visual system as the rest of the app."}
                       </div>
                     </div>
                   ) : (
