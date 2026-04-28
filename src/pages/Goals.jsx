@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useLanguage } from "../context/LanguageContext";
-import { fetchGoals, createGoal, modifyGoal, removeGoal } from "../services/goalService";
+import {
+  fetchGoals,
+  createGoal,
+  modifyGoal,
+  removeGoal,
+  addFundsToGoal,
+} from "../services/goalService";
 import { getTransactions, getOnboardingData } from "../services/transactionService";
 import {
   ShieldAlert,
@@ -58,6 +64,7 @@ export default function Goals() {
   const [dateEst, setDateEst] = useState(null);
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAllocatingFunds, setIsAllocatingFunds] = useState(false);
 
   const pickSingleInitialGoal = useCallback((list) => {
     if (!Array.isArray(list) || list.length === 0) return [];
@@ -96,10 +103,35 @@ export default function Goals() {
   useEffect(() => {
     let cancelled = false;
 
-    // جلب الأهداف من الـ API أو اللوكال
     fetchGoals().then((loadedGoals) => {
       if (!cancelled) {
-        setGoals(pickSingleInitialGoal(loadedGoals));
+        const list = Array.isArray(loadedGoals) ? loadedGoals : [];
+
+        if (list.length > 0) {
+          // ✅ API returned goals — show all of them
+          setGoals(list);
+        } else {
+          // ⚠️ API returned empty — build fallback from onboarding localStorage
+          const goalType  = onboardingData.goalType  || onboardingData.goal || "emergency";
+          const goalTitle = onboardingData.goalTitle || onboardingData.goal || "";
+          const target    = Number(onboardingData.targetAmount) || 0;
+
+          if (goalTitle && target > 0) {
+            setGoals([{
+              id: "local-onboarding",
+              name: goalTitle,
+              subname: "High Priority",
+              target,
+              saved: 0,
+              category: goalType,
+              priority: "high",
+              dateEst: null,
+            }]);
+          } else {
+            setGoals([]);
+          }
+        }
+
         setTimeout(() => {
           setIsLoading(false);
           setTimeout(() => setIsMounted(true), 100);
@@ -108,10 +140,11 @@ export default function Goals() {
     });
 
     return () => { cancelled = true; };
-  }, [pickSingleInitialGoal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat(lang === "ar" ? "ar-EG" : "en-US", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: currency,
       minimumFractionDigits: 0,
@@ -140,49 +173,68 @@ export default function Goals() {
   const handleAddGoal = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    const name = (formData.get("name") || "").trim();
+    const target = Number(formData.get("target"));
+    if (!name || !target || target <= 0) return;
+
     const goalData = {
-      name: formData.get("name"),
+      name,
       subname: PRIORITY_LABELS[formData.get("priority")] || "New Goal",
-      target: Number(formData.get("target")),
-      category: formData.get("category"),
-      priority: formData.get("priority"),
+      target,
+      category: formData.get("category") || "other",
+      priority: formData.get("priority") || "medium",
       dateEst: dateEst ? dateEst.toISOString().split("T")[0] : null,
     };
 
     let updatedGoals;
-    if (editGoal) {
-      updatedGoals = await modifyGoal(editGoal.id, goalData);
-    } else {
-      goalData.saved = 0;
-      updatedGoals = await createGoal(goalData);
+    try {
+      if (editGoal) {
+        updatedGoals = await modifyGoal(editGoal.id, goalData);
+      } else {
+        goalData.saved = 0;
+        updatedGoals = await createGoal(goalData);
+      }
+      // Show ALL goals (not just the onboarding-filtered one)
+      if (Array.isArray(updatedGoals) && updatedGoals.length > 0) {
+        setGoals(updatedGoals);
+      }
+    } catch (err) {
+      console.error("Failed to save goal:", err);
+    } finally {
+      setShowModal(false);
+      setEditGoal(null);
+      setDateEst(null);
     }
-    setGoals(pickSingleInitialGoal(updatedGoals));
-    setShowModal(false);
-    setEditGoal(null);
-    setDateEst(null);
   };
 
   const handleAddFundsSubmit = async (e) => {
     e.preventDefault();
+    if (isAllocatingFunds) return;
     const amount = Number(new FormData(e.target).get("amount"));
     if (amount > totalBalance) {
       alert(lang === "ar" ? "الرصيد غير كافٍ!" : "Insufficient balance!");
       return;
     }
-
-    const updatedGoals = await modifyGoal(addFundsGoal.id, {
-      ...addFundsGoal,
-      saved: (addFundsGoal.saved || 0) + amount,
-    });
-    setGoals(pickSingleInitialGoal(updatedGoals));
-    setTotalBalance((prev) => prev - amount);
-    setAddFundsGoal(null);
+    setIsAllocatingFunds(true);
+    try {
+      const updatedGoals = await addFundsToGoal(addFundsGoal, amount);
+      if (Array.isArray(updatedGoals)) setGoals(updatedGoals);
+      setTotalBalance((prev) => prev - amount);
+      setAddFundsGoal(null);
+    } finally {
+      setIsAllocatingFunds(false);
+    }
   };
 
   const handleDeleteGoal = async (id) => {
-    const updatedGoals = await removeGoal(id);
-    setGoals(pickSingleInitialGoal(updatedGoals));
-    setGoalToDelete(null);
+    try {
+      const updatedGoals = await removeGoal(id);
+      if (Array.isArray(updatedGoals)) setGoals(updatedGoals);
+    } catch (err) {
+      console.error("Failed to delete goal:", err);
+    } finally {
+      setGoalToDelete(null);
+    }
   };
 
   return (
@@ -559,9 +611,12 @@ export default function Goals() {
 
               <button
                 type="submit"
-                style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: "#10B981", color: "#FFFFFF", fontWeight: 700, fontSize: 15, cursor: "pointer", marginTop: 8 }}
+                disabled={isAllocatingFunds}
+                style={{ width: "100%", padding: "14px", borderRadius: 12, border: "none", background: isAllocatingFunds ? "#86EFAC" : "#10B981", color: "#FFFFFF", fontWeight: 700, fontSize: 15, cursor: isAllocatingFunds ? "not-allowed" : "pointer", marginTop: 8 }}
               >
-                {lang === "ar" ? "تأكيد الإضافة" : "Confirm Allocation"}
+                {isAllocatingFunds
+                  ? (lang === "ar" ? "جارٍ التنفيذ..." : "Processing...")
+                  : (lang === "ar" ? "تأكيد الإضافة" : "Confirm Allocation")}
               </button>
             </form>
           </div>

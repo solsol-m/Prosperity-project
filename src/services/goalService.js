@@ -7,6 +7,7 @@
 
 import api from './api';
 import { getAuthToken, getCurrentEmail } from './authService';
+import { fetchTransactions } from './transactionService';
 
 // ── Normalize API goal → local format ───────────────────────
 function normalizeGoal(g) {
@@ -44,6 +45,10 @@ function getAuthConfig() {
   return {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   };
+}
+
+function normalizeCategoryLabel(value = '') {
+  return String(value).trim().toLowerCase();
 }
 
 function clearInitialGoalFromBrowser() {
@@ -117,4 +122,62 @@ export async function removeGoal(id) {
     console.warn('[GoalService] removeGoal API failed:', err.message);
     throw err;
   }
+}
+
+async function resolveGoalFundingCategoryId() {
+  const categoriesRes = await api.get('/api/Category', getAuthConfig());
+  const categories = Array.isArray(categoriesRes?.data) ? categoriesRes.data : [];
+
+  const investmentCategory = categories.find((c) => {
+    const name = normalizeCategoryLabel(c.name || c.title || '');
+    return (
+      name.includes('investment') ||
+      name.includes('invest') ||
+      name.includes('استثمار')
+    );
+  });
+  if (investmentCategory?.id || investmentCategory?.categoryId) {
+    return investmentCategory.id || investmentCategory.categoryId;
+  }
+
+  const expenseCategory =
+    categories.find((c) => Number(c.type ?? c.transactionType ?? c.categoryType ?? 1) === 1) ||
+    categories[0];
+  return expenseCategory?.id || null;
+}
+
+export async function addFundsToGoal(goal, amount) {
+  const nextSavedAmount = Number(goal.saved || 0) + Number(amount || 0);
+  const deadline = goal?.dateEst
+    ? new Date(goal.dateEst).toISOString()
+    : defaultDeadline();
+
+  await api.put(
+    `/api/Goal/${goal.id}`,
+    {
+      id: goal.id,
+      title: goal.name || 'Goal',
+      targetAmount: Number(goal.target) || 1,
+      currentAmount: Number(nextSavedAmount) || 0,
+      deadline,
+    },
+    getAuthConfig(),
+  );
+
+  const categoryId = await resolveGoalFundingCategoryId();
+  await api.post(
+    '/api/Transaction',
+    {
+      categoryId,
+      amount: Number(amount),
+      type: 1, // Expense - deduct from net balance
+      description: `تخصيص مبلغ لـ ${goal.name}`,
+      transactionDate: new Date().toISOString(),
+    },
+    getAuthConfig(),
+  );
+
+  // Keep local transaction cache synchronized for pages relying on it.
+  await fetchTransactions();
+  return await fetchGoals();
 }

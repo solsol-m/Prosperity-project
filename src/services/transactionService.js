@@ -8,6 +8,7 @@ const UI_EXPENSE_CATEGORIES = [
   "shopping",
   "utilities",
   "entertainment",
+  "investment",
 ];
 const UI_INCOME_CATEGORIES = ["salary", "freelance", "bonus", "investment"];
 
@@ -21,7 +22,7 @@ const CATEGORY_ALIASES = {
   salary: ["salary", "payroll", "راتب"],
   freelance: ["freelance", "freelancer", "project_income", "عمل_حر", "عمل حر"],
   bonus: ["bonus", "gift", "هدية", "مكافأة"],
-  investment: ["investment", "investing", "stocks", "استثمار"],
+  investment: ["investment", "investing", "stocks", "asset", "portfolio", "استثمار"],
 };
 
 function getStorageKey() {
@@ -75,7 +76,12 @@ function normalizeApiTransaction(tx) {
   const rawType = tx.type ?? tx.transactionType ?? 1;
   const isExpense = Number(rawType) === 1;
   const uiType = isExpense ? "expense" : "income";
+  const description = String(tx.description || tx.name || "").toLowerCase();
   const rawCategory = tx.categoryName || tx.category?.name || tx.category || "";
+  const isGoalAllocation =
+    description.includes("تخصيص مبلغ") ||
+    description.includes("allocation for") ||
+    description.includes("goal allocation");
   return {
     id: tx.id,
     name: tx.description || tx.name || (isExpense ? "مصروف" : "دخل"),
@@ -84,7 +90,7 @@ function normalizeApiTransaction(tx) {
       tx.transactionDate?.split("T")[0] ||
       tx.date?.split?.("T")?.[0] ||
       new Date().toISOString().split("T")[0],
-    category: mapCategoryToUiKey(rawCategory, uiType),
+    category: isGoalAllocation ? "investment" : mapCategoryToUiKey(rawCategory, uiType),
     categoryId: tx.categoryId || tx.category?.id || null,
     type: uiType,
   };
@@ -92,6 +98,7 @@ function normalizeApiTransaction(tx) {
 
 function writeTransactionsCache(items) {
   localStorage.setItem(getStorageKey(), JSON.stringify(items));
+  window.dispatchEvent(new CustomEvent("transactions:updated"));
 }
 
 function readTransactionsCache() {

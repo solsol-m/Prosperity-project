@@ -152,17 +152,24 @@ export default function Dashboard() {
     return txDate >= pastDate && txDate <= now;
   });
 
-  // ── حساب الإجماليات يدوياً من دخل التسجيل + عمليات API ───────────
+  // ── حساب إجماليات الشهر الحالي فقط ───────────────────────────
+  const thisMonth = new Date().getMonth();
+  const thisYear  = new Date().getFullYear();
+  const currentMonthTxs = transactions.filter((tx) => {
+    const d = new Date(tx.date);
+    return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+  });
+
   const monthlyIncome = Number(onboardingData.income || 0);
-  const txIncome = transactions
+  const txIncome = currentMonthTxs
     .filter((t) => t.type === "income" || (t.type !== "expense" && t.amount > 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-  const txExpenses = transactions
+  const txExpenses = currentMonthTxs
     .filter((t) => t.type === "expense" || (t.type !== "income" && t.amount < 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-  const totalIncome = monthlyIncome + txIncome;
+  const totalIncome   = monthlyIncome + txIncome;
   const totalExpenses = txExpenses;
-  const totalBalance = monthlyIncome + (txIncome - txExpenses);
+  const totalBalance  = monthlyIncome + (txIncome - txExpenses);
 
   // المعاملات للعرض: API أولاً، ثم المحلية
   const displayTransactions = transactions.length
@@ -222,20 +229,46 @@ export default function Dashboard() {
     { name: "Remaining", value: remainingPercent, color: "#F1F5F9" },
   ];
 
+  // تنسيق العملة — يستخدم en-US دائماً لضمان النقطة العشرية
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat(lang === "ar" ? "ar-EG" : "en-US", {
+    return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: onboardingData.currency || "USD",
       minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(val);
   };
 
-  // Calculate Category Breakdown (All Transactions)
-  const categoryData = transactions.reduce((acc, tx) => {
-    const cat = tx.category || "default";
-    acc[cat] = (acc[cat] || 0) + Math.abs(tx.amount);
-    return acc;
-  }, {});
+  // ── Monthly Comparison Logic (from API monthlyOverview) ──────────────
+  const INCOME_CATEGORIES = new Set(["salary", "freelance", "bonus", "investment", "income"]);
+
+  let monthlyChangePercent = null;
+  let isMonthlyPositive = true;
+  if (apiSummary?.monthlyOverview && apiSummary.monthlyOverview.length >= 2) {
+    const monthlyData = apiSummary.monthlyOverview;
+    const currentBalance = monthlyData[monthlyData.length - 1]?.netBalance ?? 0;
+    const previousBalance = monthlyData[monthlyData.length - 2]?.netBalance ?? 0;
+    if (previousBalance !== 0) {
+      monthlyChangePercent = ((currentBalance - previousBalance) / Math.abs(previousBalance)) * 100;
+    } else if (currentBalance > 0) {
+      monthlyChangePercent = 100;
+    } else {
+      monthlyChangePercent = 0;
+    }
+    isMonthlyPositive = monthlyChangePercent >= 0;
+    monthlyChangePercent = parseFloat(monthlyChangePercent.toFixed(1));
+  }
+
+  // Calculate Category Breakdown — Expenses ONLY (exclude income categories)
+  const categoryData = transactions
+    .filter((tx) => tx.type === "expense" || (tx.type !== "income" && tx.amount < 0))
+    .reduce((acc, tx) => {
+      const cat = tx.category || "default";
+      if (!INCOME_CATEGORIES.has(cat)) {
+        acc[cat] = (acc[cat] || 0) + Math.abs(tx.amount);
+      }
+      return acc;
+    }, {});
 
   const catPieData = Object.entries(categoryData)
     .map(([name, value]) => ({
@@ -483,21 +516,27 @@ export default function Dashboard() {
                 {formatCurrency(totalBalance)}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    background: "#ECFDF5",
-                    color: "#10B981",
-                    padding: "4px 10px",
-                    borderRadius: 20,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                  }}
-                >
-                  <ArrowUpRight size={14} /> 2.4%
-                </span>
+                {monthlyChangePercent !== null ? (
+                  <span
+                    style={{
+                      background: isMonthlyPositive ? "#ECFDF5" : "#FEF2F2",
+                      color: isMonthlyPositive ? "#10B981" : "#EF4444",
+                      padding: "4px 10px",
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 4,
+                      transition: "all 0.3s ease",
+                    }}
+                  >
+                    {isMonthlyPositive
+                      ? <ArrowUpRight size={14} />
+                      : <ArrowDownRight size={14} />}
+                    {Math.abs(monthlyChangePercent)}%
+                  </span>
+                ) : null}
                 <span
                   style={{ color: "#94A3B8", fontSize: 13, fontWeight: 500 }}
                 >
@@ -756,7 +795,8 @@ export default function Dashboard() {
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#colorIncome)"
-                      animationDuration={1500}
+                      animationDuration={800}
+                      animationEasing="ease-out"
                     />
                     <Area
                       type="monotone"
@@ -766,7 +806,8 @@ export default function Dashboard() {
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#colorSpend)"
-                      animationDuration={1500}
+                      animationDuration={800}
+                      animationEasing="ease-out"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -985,7 +1026,8 @@ export default function Dashboard() {
                       dataKey="value"
                       stroke="none"
                       cornerRadius={10}
-                      animationDuration={1000}
+                      animationDuration={800}
+                      animationEasing="ease-out"
                     >
                       {pieData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />

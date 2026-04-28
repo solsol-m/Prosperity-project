@@ -173,6 +173,21 @@ h1, h2, h3, h4, h5, h6 {
 .animate-pulse-ring { animation: pulse-ring 1.4s ease-out infinite; }
 
 /* ═══════════════════════════════════════════════════════════════
+   🦴 Skeleton Loading (global)
+   Used across pages for consistent loading states.
+   ═══════════════════════════════════════════════════════════════ */
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
+.skeleton {
+  background: var(--color-neutral-200);
+  border-radius: var(--radius-xl);
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    🃏 Card Component
    ═══════════════════════════════════════════════════════════════ */
 .card {

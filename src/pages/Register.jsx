@@ -14,45 +14,94 @@ const FONT = {
   en: { headline: "'Manrope', sans-serif", body: "'Inter', sans-serif" },
 };
 
+const PASSWORD_RULES = [
+  { key: "min8",   test: (p) => p.length >= 8,          labelAr: "8 أحرف على الأقل",          labelEn: "At least 8 characters" },
+  { key: "upper",  test: (p) => /[A-Z]/.test(p),        labelAr: "حرف إنجليزي كبير (A-Z)",     labelEn: "Uppercase letter (A-Z)" },
+  { key: "lower",  test: (p) => /[a-z]/.test(p),        labelAr: "حرف إنجليزي صغير (a-z)",     labelEn: "Lowercase letter (a-z)" },
+  { key: "digit",  test: (p) => /[0-9]/.test(p),        labelAr: "رقم واحد على الأقل (0-9)",   labelEn: "At least one number (0-9)" },
+  { key: "symbol", test: (p) => /[^A-Za-z0-9]/.test(p), labelAr: "رمز خاص (!@#$…)",           labelEn: "Special character (!@#$…)" },
+];
+
 function getStrength(pwd) {
   if (!pwd) return 0;
-  let score = 0;
-  if (pwd.length >= 8) score++;
-  if (/[A-Z]/.test(pwd)) score++;
-  if (/[0-9]/.test(pwd)) score++;
-  if (/[^A-Za-z0-9]/.test(pwd)) score++;
-  return score; // 0-4
+  return PASSWORD_RULES.filter((r) => r.test(pwd)).length;
+}
+
+function PasswordRequirements({ password, font, lang }) {
+  if (!password) return null;
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        background: "#F8FAFC",
+        border: "1px solid #E2E8F0",
+        borderRadius: 10,
+        padding: "10px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      {PASSWORD_RULES.map((rule) => {
+        const met = rule.test(password);
+        return (
+          <div
+            key={rule.key}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontFamily: font.body,
+              fontSize: 12,
+              fontWeight: 600,
+              color: met ? "#059669" : "#94A3B8",
+              transition: "color 0.25s ease",
+            }}
+          >
+            <span
+              style={{
+                width: 16,
+                height: 16,
+                borderRadius: "50%",
+                border: `2px solid ${met ? "#059669" : "#CBD5E1"}`,
+                background: met ? "#ECFDF5" : "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+                transition: "all 0.25s ease",
+              }}
+            >
+              {met && <Check size={9} color="#059669" strokeWidth={3} />}
+            </span>
+            {lang === "ar" ? rule.labelAr : rule.labelEn}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function StrengthBar({ password, font, t }) {
   const score = getStrength(password);
   if (!password) return null;
-
   const activeColor =
-    score <= 1
-      ? "#EF4444"
-      : score === 2
-        ? "#F59E0B"
-        : score === 3
-          ? "#10B981"
-          : "#059669";
-
+    score <= 1 ? "#EF4444" : score <= 3 ? "#F59E0B" : "#059669";
   const label =
     score <= 1
       ? t("password_strength_weak")
-      : score === 2
+      : score <= 3
         ? t("password_strength_fair")
         : t("password_strength_strong");
-
   return (
-    <div style={{ marginTop: 8 }}>
-      <div style={{ display: "flex", gap: 4, marginBottom: 5 }}>
-        {[1, 2, 3, 4].map((i) => (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ display: "flex", gap: 4, marginBottom: 4 }}>
+        {[1, 2, 3, 4, 5].map((i) => (
           <div
             key={i}
             style={{
               flex: 1,
-              height: 4,
+              height: 3,
               borderRadius: 2,
               background: score >= i ? activeColor : "#E2E8F0",
               transition: "background 0.25s",
@@ -60,18 +109,8 @@ function StrengthBar({ password, font, t }) {
           />
         ))}
       </div>
-      <div
-        style={{
-          fontFamily: font.body,
-          fontSize: 11,
-          color: activeColor,
-          fontWeight: 600,
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
-        {score >= 3 && <Check size={11} />}
+      <div style={{ fontFamily: font.body, fontSize: 11, color: activeColor, fontWeight: 600, display: "flex", alignItems: "center", gap: 4 }}>
+        {score >= 4 && <Check size={11} />}
         {label}
       </div>
     </div>
@@ -135,11 +174,8 @@ export default function Register() {
       });
 
       if (result.success) {
-        if (result.token) {
-          navigate("/onboarding", { replace: true });
-        } else {
-          navigate("/login", { replace: true });
-        }
+        // ✅ التوجيه دائماً إلى Onboarding بعد نجاح التسجيل
+        navigate("/onboarding", { replace: true });
       } else {
         const apiErr = result.errors?.[0] || "";
         if (
@@ -577,6 +613,7 @@ export default function Register() {
                     </button>
                   </div>
                   <StrengthBar password={password} font={font} t={t} />
+                  <PasswordRequirements password={password} font={font} lang={lang} />
                 </div>
 
                 <div

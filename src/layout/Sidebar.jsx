@@ -7,6 +7,7 @@ import {
   Target,
   TrendingUp,
   HelpCircle,
+  User,
   LogOut,
   Globe,
   X,
@@ -283,6 +284,35 @@ export default function Sidebar({ isOpen, onClose }) {
                 >
                   <HelpCircle size={16} />
                   <span>{t("help_center")}</span>
+                </NavLink>
+
+                <NavLink
+                  to="/profile"
+                  onClick={() => setUserMenuOpen(false)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#64748B",
+                    textDecoration: "none",
+                    transition: "all 0.2s",
+                    fontFamily: "'Inter', 'Cairo', sans-serif",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "#F8FAFC";
+                    e.currentTarget.style.color = "#0A192F";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = "#64748B";
+                  }}
+                >
+                  <User size={16} />
+                  <span>{t("profile_label")}</span>
                 </NavLink>
 
                 <button

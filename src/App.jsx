@@ -36,6 +36,7 @@ import Transactions from "./pages/Transactions";
 import Goals from "./pages/Goals";
 import AIInsights from "./pages/AIInsights";
 import FuturePlanning from "./pages/FuturePlanning";
+import Profile from "./pages/Profile";
 
 function ProtectedLayout() {
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/goals" element={<Goals />} />
             <Route path="/ai-insights" element={<AIInsights />} />
             <Route path="/future" element={<FuturePlanning />} />
+            <Route path="/profile" element={<Profile />} />
 
             {/* Catch-all: أي مسار غير معروف ← الداشبورد */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

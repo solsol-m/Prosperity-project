@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useLanguage } from "../context/LanguageContext";
 import { fetchDashboardSummary } from "../services/dashboardService";
 import { fetchGoals } from "../services/goalService";
 import { getOnboardingData } from "../services/transactionService";
+
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+const cardVariants = {
+  hidden: { opacity: 0, y: 14 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" } },
+};
 
 export default function AIInsights() {
   const { dir, lang } = useLanguage();
@@ -40,37 +50,121 @@ export default function AIInsights() {
     }).format(val);
 
   return (
-    <div
-      className="animate-fadeIn"
-      style={{ padding: 24, direction: dir, fontFamily: "'Cairo', sans-serif" }}
+    <motion.div
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 24,
+        direction: dir,
+        fontFamily: "'Inter', 'Cairo', sans-serif",
+      }}
     >
-      <h2 style={{ color: "#0A192F" }}>رؤى الذكاء الاصطناعي</h2>
-      {loading ? (
-        <p style={{ color: "#64748B" }}>
-          {lang === "ar" ? "جاري تحميل البيانات..." : "Loading insights..."}
-        </p>
-      ) : (
-        <div style={{ color: "#64748B", lineHeight: 1.8 }}>
-          <p>
-            {lang === "ar" ? "الرصيد الحالي:" : "Current Balance:"}{" "}
-            <strong style={{ color: "#0A192F" }}>{formatCurrency(balance)}</strong>
-          </p>
-          <p>
-            {lang === "ar" ? "إجمالي الدخل:" : "Total Income:"}{" "}
-            <strong style={{ color: "#0A192F" }}>{formatCurrency(income)}</strong>
-          </p>
-          <p>
-            {lang === "ar" ? "إجمالي المصروفات:" : "Total Expenses:"}{" "}
-            <strong style={{ color: "#0A192F" }}>{formatCurrency(expenses)}</strong>
-          </p>
-          <p>
-            {lang === "ar" ? "الهدف النشط:" : "Active Goal:"}{" "}
-            <strong style={{ color: "#0A192F" }}>
-              {topGoal ? topGoal.name : lang === "ar" ? "لا يوجد أهداف بعد" : "No goals yet"}
-            </strong>
+      <motion.div variants={cardVariants}>
+        <div>
+          <h1
+            style={{
+              margin: "0 0 8px",
+              fontSize: 32,
+              fontWeight: 800,
+              color: "#0A192F",
+              fontFamily: "'Manrope', 'Cairo', sans-serif",
+              letterSpacing: -1,
+            }}
+          >
+            {lang === "ar" ? "رؤى الذكاء الاصطناعي" : "AI Insights"}
+          </h1>
+          <p style={{ margin: 0, fontSize: 15, color: "#64748B" }}>
+            {lang === "ar"
+              ? "ملخص سريع يساعدك على فهم وضعك المالي الحالي."
+              : "A quick summary to understand your current financial situation."}
           </p>
         </div>
+      </motion.div>
+
+      {loading ? (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 24,
+          }}
+        >
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="skeleton"
+              style={{
+                height: 140,
+                border: "1px solid #E2E8F0",
+                background: "#E2E8F0",
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <motion.div
+          variants={containerVariants}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 24,
+          }}
+        >
+          {[
+            {
+              id: "balance",
+              title: lang === "ar" ? "الرصيد الحالي" : "Current Balance",
+              value: formatCurrency(balance),
+            },
+            {
+              id: "income",
+              title: lang === "ar" ? "إجمالي الدخل" : "Total Income",
+              value: formatCurrency(income),
+            },
+            {
+              id: "expenses",
+              title: lang === "ar" ? "إجمالي المصروفات" : "Total Expenses",
+              value: formatCurrency(expenses),
+            },
+            {
+              id: "goal",
+              title: lang === "ar" ? "الهدف النشط" : "Active Goal",
+              value: topGoal ? topGoal.name : lang === "ar" ? "لا يوجد أهداف بعد" : "No goals yet",
+            },
+          ].map((card) => (
+            <motion.div
+              key={card.id}
+              variants={cardVariants}
+              style={{
+                background: "#FFFFFF",
+                borderRadius: 24,
+                padding: 24,
+                border: "1px solid #E2E8F0",
+                boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#64748B", marginBottom: 10 }}>
+                {card.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 26,
+                  fontWeight: 800,
+                  color: "#0A192F",
+                  fontFamily: "'Manrope', 'Cairo', sans-serif",
+                  wordBreak: "break-word",
+                }}
+              >
+                {card.value}
+              </div>
+            </motion.div>
+          ))}
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }
