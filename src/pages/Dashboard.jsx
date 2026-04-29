@@ -246,15 +246,17 @@ export default function Dashboard() {
         localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, savingsAmount.toString());
       } else {
         const depositName = lang === "ar" ? "إيداع توفير" : "Savings Deposit";
-        await depositSavings(savingsAmount, new Date().toISOString(), depositName);
-        
-        // تسجيل المعاملة كما طلب المستخدم
+        // 1. استدعاء المزامنة مع الحصالة لتحديث الرصيد المدخر
+        await depositSavings(Number(savingsAmount), new Date().toISOString(), depositName);
+
+        // 2. تسجيل المعاملة لمرة واحدة كخصم لتظهر في العمليات
         await addTransaction({
-          name: "إيداع توفير",
+          name: depositName,
           amount: Number(savingsAmount),
           date: new Date().toISOString().split("T")[0],
           category: "investment",
-          type: "expense"
+          type: "expense",
+          transactionType: 1
         });
       }
 
@@ -286,6 +288,7 @@ export default function Dashboard() {
       setHasSkippedSavingsGoal(false);
       localStorage.removeItem(`skipped_savings_${today.getFullYear()}_${today.getMonth()}`);
       
+      setSavingsAmount(""); // تصفير الحقل بعد النجاح
       setShowSavingsModal(false);
       setIsEditingSavings(false);
     } catch (err) {
@@ -491,12 +494,17 @@ export default function Dashboard() {
     .sort((a, b) => b.value - a.value); // Sort by highest expense
 
   // Savings Box calculations
-  const s_actualSaved = savingsSummary?.currentMonthSaved || 0;
-  const s_salary = savingsSummary?.monthlyIncome || Number(onboardingData.income) || 0;
-  const s_savingRate = savingsSummary?.savingRate || 0;
-  const s_monthlyGoal = (s_salary * s_savingRate) / 100;
-  const savingsProgress = s_monthlyGoal > 0 ? Math.min(100, (s_actualSaved / s_monthlyGoal) * 100) : 0;
-  const remainingSavings = Math.max(0, s_monthlyGoal - s_actualSaved);
+  const userDataSalary = Number(savingsSummary?.monthlyIncome) || Number(onboardingData?.income) || 0;
+  const userDataSavingRate = Number(savingsSummary?.savingRate) || 0;
+  
+  // حساب الهدف إما من الراتب والنسبة، أو من الهدف اليدوي كبديل
+  const calculatedTarget = userDataSalary * (userDataSavingRate / 100);
+  const target = calculatedTarget > 0 ? calculatedTarget : (savingsTarget || 0);
+  
+  const currentMonthSaved = Number(savingsSummary?.currentMonthSaved) || 0;
+  
+  const savingsProgress = target > 0 ? Math.min(100, (currentMonthSaved / target) * 100) : 0;
+  const remainingSavings = target > 0 ? Math.max(0, target - currentMonthSaved) : 0;
 
   if (isLoading) {
     return (
@@ -1861,7 +1869,7 @@ export default function Dashboard() {
                   color: "#0A192F",
                 }}
               >
-                {t("dash_financial_goals")}
+                {lang === "ar" ? "هدف الادخار" : "Savings Goal"}
               </h3>
 
               <div
