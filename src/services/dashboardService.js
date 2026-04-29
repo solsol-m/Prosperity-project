@@ -163,3 +163,18 @@ export async function depositSavings(amount, date, desc = "Savings Deposit") {
     return { success: false, error: err.message };
   }
 }
+
+/**
+ * POST /api/user-profile/saving-rate
+ * Payload: saving rate number
+ */
+export async function saveSavingRate(rate) {
+  try {
+    const payload = { rate: Number(rate), savingRate: Number(rate) };
+    await api.post('/api/user-profile/saving-rate', payload, getAuthConfig());
+    return { success: true };
+  } catch (err) {
+    console.error('[DashboardService] saveSavingRate failed:', err);
+    return { success: false, error: err.message };
+  }
+}

@@ -245,9 +245,17 @@ export default function Dashboard() {
         setSavingsTarget(Number(savingsAmount));
         localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, savingsAmount.toString());
       } else {
-        // إضافة أموال (إيداع) للباك أند فقط (السيرفر سيقوم بإنشاء المعاملة تلقائياً)
         const depositName = lang === "ar" ? "إيداع توفير" : "Savings Deposit";
         await depositSavings(savingsAmount, new Date().toISOString(), depositName);
+        
+        // تسجيل المعاملة كما طلب المستخدم
+        await addTransaction({
+          name: "إيداع توفير",
+          amount: Number(savingsAmount),
+          date: new Date().toISOString().split("T")[0],
+          category: "investment",
+          type: "expense"
+        });
       }
 
       // تحديث البيانات من السيرفر لضمان المزامنة
@@ -482,7 +490,13 @@ export default function Dashboard() {
     }))
     .sort((a, b) => b.value - a.value); // Sort by highest expense
 
-
+  // Savings Box calculations
+  const s_actualSaved = savingsSummary?.currentMonthSaved || 0;
+  const s_salary = savingsSummary?.monthlyIncome || Number(onboardingData.income) || 0;
+  const s_savingRate = savingsSummary?.savingRate || 0;
+  const s_monthlyGoal = (s_salary * s_savingRate) / 100;
+  const savingsProgress = s_monthlyGoal > 0 ? Math.min(100, (s_actualSaved / s_monthlyGoal) * 100) : 0;
+  const remainingSavings = Math.max(0, s_monthlyGoal - s_actualSaved);
 
   if (isLoading) {
     return (
@@ -1603,9 +1617,36 @@ export default function Dashboard() {
                     color: "#64748B", 
                     fontWeight: 600, 
                     marginTop: 6,
-                    textAlign: "center"
+                    textAlign: "center",
+                    marginBottom: 16
                   }}>
                     {lang === "ar" ? "إجمالي المبلغ المدخر" : "Total Amount Saved"}
+                  </div>
+                  
+                  {/* Progress Bar Container */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: "#0A192F" }}>
+                        {lang === "ar" ? "التقدم الشهري" : "Monthly Progress"}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "#10B981", fontFamily: "'Manrope', sans-serif" }}>
+                        {savingsProgress.toFixed(1)}%
+                      </span>
+                    </div>
+                    
+                    <div style={{ width: "100%", height: 8, background: "#F1F5F9", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ 
+                        width: `${savingsProgress}%`, 
+                        height: "100%", 
+                        background: "#10B981", 
+                        borderRadius: 4,
+                        transition: "width 1s ease-in-out"
+                      }} />
+                    </div>
+                    
+                    <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600, textAlign: dir === "rtl" ? "right" : "left" }}>
+                      {lang === "ar" ? "المتبقي للهدف:" : "Remaining for goal:"} <span style={{ color: "#0A192F", fontWeight: 700, fontFamily: "'Manrope', sans-serif" }}>{new Intl.NumberFormat("en-US", { style: "currency", currency: onboardingData.currency || "USD" }).format(remainingSavings)}</span>
+                    </div>
                   </div>
                 </div>
               </div>

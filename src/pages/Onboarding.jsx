@@ -15,6 +15,7 @@ import {
 import { useLanguage } from "../context/LanguageContext";
 import { updateUserOnboardingProfile } from "../services/transactionService";
 import { createGoal } from "../services/goalService";
+import { saveSavingRate } from "../services/dashboardService";
 
 export default function Onboarding() {
   const { t, dir } = useLanguage();
@@ -27,6 +28,7 @@ export default function Onboarding() {
   const [customGoal, setCustomGoal] = useState("");
   const [targetAmount, setTargetAmount] = useState("");
   const [currency, setCurrency] = useState("USD");
+  const [savingRate, setSavingRate] = useState("");
   const [error, setError] = useState("");
   const { lang } = useLanguage();
 
@@ -52,6 +54,12 @@ export default function Onboarding() {
       }
     }
     if (step === 3) {
+      if (!savingRate || Number(savingRate) <= 0 || Number(savingRate) > 100) {
+        setError(lang === "ar" ? "الرجاء إدخال نسبة صحيحة (1-100)" : "Please enter a valid rate (1-100)");
+        return;
+      }
+    }
+    if (step === 4) {
       if (!goal) {
         setError(t("onb_err_goal"));
         return;
@@ -94,6 +102,8 @@ export default function Onboarding() {
         financialGoalType: goalType,
         preferredCurrency: currency,
       });
+
+      await saveSavingRate(savingRate);
 
       await createGoal({
         name: goalTitle,
@@ -143,7 +153,7 @@ export default function Onboarding() {
           }}
         >
           <div style={{ display: "flex", gap: 6, flex: 1 }}>
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
                 style={{
@@ -166,7 +176,7 @@ export default function Onboarding() {
               fontFamily: "'Inter', sans-serif",
             }}
           >
-            {t("onb_step")} {step} {t("onb_of")} 4
+            {t("onb_step")} {step} {t("onb_of")} 5
           </span>
         </div>
 
@@ -367,6 +377,139 @@ export default function Onboarding() {
           )}
 
           {step === 3 && (
+            <div className="animate-fadeIn">
+              <h2
+                style={{
+                  fontSize: 24,
+                  fontWeight: 800,
+                  color: "#0A192F",
+                  margin: "0 0 8px",
+                  fontFamily: "'Manrope', 'Cairo', sans-serif",
+                }}
+              >
+                {lang === "ar" ? "نسبة الادخار" : "Savings Rate"}
+              </h2>
+              <p
+                style={{
+                  fontSize: 14,
+                  color: "#64748B",
+                  margin: "0 0 32px",
+                  fontFamily: "'Inter', 'Cairo', sans-serif",
+                }}
+              >
+                {lang === "ar" ? "ما هي نسبة الادخار التي تستهدفها شهرياً؟" : "What is your target monthly savings rate?"}
+              </p>
+
+              <div
+                style={{ position: "relative", marginBottom: 8 }}
+              >
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={savingRate}
+                  onChange={(e) => {
+                    const englishNumbers = e.target.value.replace(
+                      /[٠-٩]/g,
+                      (d) => "٠١٢٣٤٥٦٧٨٩".indexOf(d),
+                    );
+                    if (/^\d*$/.test(englishNumbers)) {
+                      setSavingRate(englishNumbers);
+                      setError("");
+                    }
+                  }}
+                  placeholder={lang === "ar" ? "مثال: 20" : "e.g. 20"}
+                  style={{
+                    width: "100%",
+                    padding:
+                      dir === "rtl"
+                        ? "16px 20px 16px 48px"
+                        : "16px 48px 16px 20px",
+                    fontSize: 20,
+                    fontWeight: 700,
+                    color: "#0A192F",
+                    background: "#F8FAFC",
+                    border: `2px solid ${error ? "#EF4444" : "#E2E8F0"}`,
+                    borderRadius: 14,
+                    outline: "none",
+                    transition: "border-color 0.2s",
+                    boxSizing: "border-box",
+                    fontFamily: "'Manrope', sans-serif",
+                    direction: "ltr",
+                    textAlign: dir === "rtl" ? "right" : "left",
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = "#10B981";
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = error ? "#EF4444" : "#E2E8F0";
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "50%",
+                    [dir === "rtl" ? "left" : "right"]: 20,
+                    transform: "translateY(-50%)",
+                    color: "#94A3B8",
+                    fontSize: 20,
+                    fontWeight: 700
+                  }}
+                >
+                  %
+                </div>
+              </div>
+              
+              <div style={{ marginBottom: 32, fontSize: 13, color: "#059669", fontWeight: 600, background: "#ECFDF5", padding: "10px 14px", borderRadius: 10 }}>
+                {savingRate && Number(savingRate) > 0 ? (
+                  lang === "ar" 
+                    ? `هذا يعني ادخار ${(Number(income) * Number(savingRate) / 100).toFixed(0)} ₪ شهرياً، و ${((Number(income) * Number(savingRate) / 100) * 12).toFixed(0)} ₪ بعد سنة.`
+                    : `This means saving ${(Number(income) * Number(savingRate) / 100).toFixed(0)} ₪ monthly, and ${((Number(income) * Number(savingRate) / 100) * 12).toFixed(0)} ₪ in a year.`
+                ) : (
+                  lang === "ar" ? "أدخل النسبة لرؤية التوقعات" : "Enter a rate to see projections"
+                )}
+              </div>
+
+              {error && (
+                <p
+                  style={{
+                    color: "#EF4444",
+                    fontSize: 13,
+                    margin: "0 0 24px",
+                    fontFamily: "'Inter', 'Cairo', sans-serif",
+                  }}
+                >
+                  {error}
+                </p>
+              )}
+
+              <button
+                onClick={handleNext}
+                style={{
+                  width: "100%",
+                  padding: "14px",
+                  background: "#10B981",
+                  color: "#FFF",
+                  border: "none",
+                  borderRadius: 12,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "background 0.2s",
+                  fontFamily: "'Inter', 'Cairo', sans-serif",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#059669")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "#10B981")
+                }
+              >
+                {t("onb_next_btn")}
+              </button>
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="animate-fadeIn">
               <h2
                 style={{
@@ -607,7 +750,7 @@ export default function Onboarding() {
             </div>
           )}
 
-          {step === 4 && (
+          {step === 5 && (
             <div className="animate-fadeIn">
               <h2
                 style={{
