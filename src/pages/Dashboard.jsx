@@ -341,9 +341,11 @@ export default function Dashboard() {
   if (prevExp !== 0) {
     monthlyChangePercent = ((currExp - prevExp) / prevExp) * 100;
     isMonthlyPositive = monthlyChangePercent <= 0; // نقصان المصروفات أخضر
-  } else if (currExp > 0) {
-    monthlyChangePercent = 100;
-    isMonthlyPositive = false;
+  } else if (currExp > 0 && prevExp === 0) {
+    // حالة مستخدم جديد: لا يوجد مصروفات شهر سابق ولكن يوجد هذا الشهر
+    // بدلاً من 100% أحمر، نظهر 0% أو نعتبرها بداية جديدة
+    monthlyChangePercent = 0;
+    isMonthlyPositive = true;
   } else {
     monthlyChangePercent = 0;
     isMonthlyPositive = true;
