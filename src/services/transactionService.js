@@ -22,7 +22,7 @@ const CATEGORY_ALIASES = {
   salary: ["salary", "payroll", "راتب"],
   freelance: ["freelance", "freelancer", "project_income", "عمل_حر", "عمل حر"],
   bonus: ["bonus", "gift", "هدية", "مكافأة"],
-  investment: ["investment", "investing", "stocks", "asset", "portfolio", "استثمار"],
+  investment: ["investment", "investing", "stocks", "asset", "portfolio", "savings", "توفير", "استثمار"],
 };
 
 function getStorageKey() {
@@ -74,14 +74,21 @@ function categoryBelongsToType(uiKey, type) {
 
 function normalizeApiTransaction(tx) {
   const rawType = tx.type ?? tx.transactionType ?? 1;
-  const isExpense = Number(rawType) === 1;
-  const uiType = isExpense ? "expense" : "income";
   const description = String(tx.description || tx.name || "").toLowerCase();
+  
+  // Force Savings Deposit to be Expense
+  const isSavingsDeposit = description.includes('إيداع توفير') || description.includes('savings deposit');
+  
+  const isExpense = Number(rawType) === 1 || isSavingsDeposit;
+  const uiType = isExpense ? "expense" : "income";
+  
   const rawCategory = tx.categoryName || tx.category?.name || tx.category || "";
   const isGoalAllocation =
     description.includes("تخصيص مبلغ") ||
     description.includes("allocation for") ||
-    description.includes("goal allocation");
+    description.includes("goal allocation") ||
+    isSavingsDeposit;
+
   return {
     id: tx.id,
     name: tx.description || tx.name || (isExpense ? "مصروف" : "دخل"),

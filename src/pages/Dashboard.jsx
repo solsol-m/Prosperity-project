@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
 import {
@@ -19,7 +20,7 @@ import {
   fetchTransactions,
   addTransaction,
 } from "../services/transactionService";
-import { fetchDashboardSummary } from "../services/dashboardService";
+import { fetchDashboardSummary, fetchSavingsSummary, depositSavings } from "../services/dashboardService";
 import { fetchGoals } from "../services/goalService";
 import AddTransactionModal from "../components/AddTransactionModal";
 import {
@@ -44,6 +45,9 @@ import {
   Plane,
   ShieldAlert,
   Target,
+  PiggyBank,
+  MoreVertical,
+  MoreHorizontal,
 } from "lucide-react";
 import {
   AreaChart,
@@ -109,12 +113,27 @@ export default function Dashboard() {
     localStorage.getItem("accessToken");
   const [isLoading, setIsLoading] = useState(Boolean(token));
 
+  const today = new Date();
   const [transactions, setTransactions] = useState(() => getTransactions());
   const [goals, setGoals] = useState([]);
   const [apiSummary, setApiSummary] = useState(null);
   const [timeRange, setTimeRange] = useState(7); // نطاق زمني افتراضي: 7 أيام
   const [showTimeMenu, setShowTimeMenu] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [savingsSummary, setSavingsSummary] = useState(null);
+  const [showSavingsModal, setShowSavingsModal] = useState(false);
+  const [savingsAmount, setSavingsAmount] = useState(0);
+  const [savingsTarget, setSavingsTarget] = useState(() => {
+    const saved = localStorage.getItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`);
+    return saved ? Number(saved) : 0;
+  });
+  const [isSavingsLoading, setIsSavingsLoading] = useState(false);
+  const [isEditingSavings, setIsEditingSavings] = useState(false);
+  const [editingSavingsTxId, setEditingSavingsTxId] = useState(null);
+  const [showSavingsMenu, setShowSavingsMenu] = useState(false);
+  const [hasSkippedSavingsGoal, setHasSkippedSavingsGoal] = useState(() => {
+    return localStorage.getItem(`skipped_savings_${today.getFullYear()}_${today.getMonth()}`) === "true";
+  });
 
   // ── تحميل البيانات: API أولاً ثم localStorage كبديل ────────────────
   useEffect(() => {
@@ -127,18 +146,41 @@ export default function Dashboard() {
       };
     }
 
-    Promise.all([fetchDashboardSummary(10, 6), fetchGoals(), fetchTransactions()]).then(
-      ([summary, goalsData, txData]) => {
-        if (!cancelled) {
-          setApiSummary(summary); // null = فشل الـ API، يُستخدم اللوكال تلقائياً
-          setGoals(Array.isArray(goalsData) ? goalsData : []);
-          setTransactions(Array.isArray(txData) ? txData : []);
-          setIsLoading(false);
-        }
-      },
-    );
+    Promise.all([
+      fetchDashboardSummary(10, 6),
+      fetchGoals(),
+      fetchTransactions(),
+      fetchSavingsSummary(),
+    ]).then(([summary, goalsData, txData, savingsData]) => {
+      if (!cancelled) {
+        // --- تعديل الملخص المالي ليعكس مدخرات الحصالة كمصروفات ---
+        const normalizedTxs = Array.isArray(txData) ? txData : [];
+        const savingsTxs = normalizedTxs.filter(t => 
+          t.name.includes("إيداع توفير") || t.name.toLowerCase().includes("savings deposit")
+        );
+        const totalSavingsAdjust = savingsTxs.reduce((sum, t) => sum + Math.abs(t.amount), 0);
 
-    return () => { cancelled = true; };
+        const adjustedSummary = {
+          ...summary,
+          // إذا كان السيرفر يعتبر التوفير دخلاً، نقوم بخصمه من الدخل وإضافته للمصروفات
+          totalIncome: Math.max(0, summary.totalIncome - totalSavingsAdjust),
+          totalExpenses: summary.totalExpenses + totalSavingsAdjust,
+          totalBalance: summary.totalBalance - (totalSavingsAdjust * 2), // خصم (إزالة الإضافة + خصم كمصروف)
+        };
+        // تصحيح الرصيد النهائي ليكون دائماً الفرق بين الدخل والمصروفات المعدلة
+        adjustedSummary.totalBalance = adjustedSummary.totalIncome - adjustedSummary.totalExpenses;
+
+        setApiSummary(adjustedSummary);
+        setGoals(Array.isArray(goalsData) ? goalsData : []);
+        setTransactions(normalizedTxs);
+        setSavingsSummary(savingsData.success ? savingsData : null);
+        setIsLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [token]);
 
   // ── بيانات الـ Onboarding (الدخل الأساسي، العملة) ───────────
@@ -148,7 +190,6 @@ export default function Dashboard() {
   const [showSalaryBanner, setShowSalaryBanner] = useState(false);
   const salaryDay = 1; // يظهر دائماً من بداية الشهر (تاريخ 1)
 
-  const today = new Date();
   const currentMonthKey = `salary_added_${today.getFullYear()}_${today.getMonth()}`;
   const isSalaryConfirmed = localStorage.getItem(currentMonthKey) === "true";
 
@@ -170,7 +211,7 @@ export default function Dashboard() {
   const handleAddSalary = async () => {
     try {
       const salaryAmount = Number(onboardingData.income || 0);
-      
+
       const newTx = {
         name: lang === "ar" ? "الراتب الشهري" : "Monthly Salary",
         amount: salaryAmount,
@@ -180,17 +221,84 @@ export default function Dashboard() {
       };
 
       await addTransaction(newTx);
-      
+
       const currentMonthKey = `salary_added_${today.getFullYear()}_${today.getMonth()}`;
       localStorage.setItem(currentMonthKey, "true");
-      
+
       // تحديث البيانات فوراً
       const updatedTxs = await fetchTransactions();
       setTransactions(updatedTxs);
       setShowSalaryBanner(false);
+
+      // Open Savings Modal
+      setShowSavingsModal(true);
     } catch (err) {
       console.error("Failed to add salary:", err);
     }
+  };
+
+  const handleSavingsConfirm = async () => {
+    setIsSavingsLoading(true);
+    try {
+      if (isEditingSavings) {
+        // تحديث الهدف الشهري فقط في المتصفح
+        setSavingsTarget(Number(savingsAmount));
+        localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, savingsAmount.toString());
+      } else {
+        // إضافة أموال (إيداع) للباك أند فقط (السيرفر سيقوم بإنشاء المعاملة تلقائياً)
+        const depositName = lang === "ar" ? "إيداع توفير" : "Savings Deposit";
+        await depositSavings(savingsAmount, new Date().toISOString(), depositName);
+      }
+
+      // تحديث البيانات من السيرفر لضمان المزامنة
+      const [txData, savingsData, summary] = await Promise.all([
+        fetchTransactions(),
+        fetchSavingsSummary(),
+        fetchDashboardSummary(10, 6),
+      ]);
+      
+      const normalizedTxs = Array.isArray(txData) ? txData : [];
+      const savingsTxs = normalizedTxs.filter(t => 
+        t.name.includes("إيداع توفير") || t.name.toLowerCase().includes("savings deposit")
+      );
+      const totalSavingsAdjust = savingsTxs.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const adjustedSummary = {
+        ...summary,
+        totalIncome: Math.max(0, summary.totalIncome - totalSavingsAdjust),
+        totalExpenses: summary.totalExpenses + totalSavingsAdjust,
+        totalBalance: summary.totalIncome - summary.totalExpenses - (totalSavingsAdjust * 2) 
+      };
+      adjustedSummary.totalBalance = adjustedSummary.totalIncome - adjustedSummary.totalExpenses;
+
+      setTransactions(normalizedTxs);
+      setSavingsSummary(savingsData.success ? savingsData : null);
+      setApiSummary(adjustedSummary);
+      
+      setHasSkippedSavingsGoal(false);
+      localStorage.removeItem(`skipped_savings_${today.getFullYear()}_${today.getMonth()}`);
+      
+      setShowSavingsModal(false);
+      setIsEditingSavings(false);
+    } catch (err) {
+      console.error("Savings action failed:", err);
+    } finally {
+      setIsSavingsLoading(false);
+    }
+  };
+
+  const handleSkipSavings = () => {
+    localStorage.setItem(`skipped_savings_${today.getFullYear()}_${today.getMonth()}`, "true");
+    setHasSkippedSavingsGoal(true);
+    setShowSavingsModal(false);
+    setIsEditingSavings(false);
+  };
+
+  const handleOpenEditSavings = () => {
+    setSavingsAmount(savingsTarget);
+    setIsEditingSavings(true);
+    setShowSavingsModal(true);
+    setShowSavingsMenu(false);
   };
 
   // Filter transactions by timeRange for CHART ONLY
@@ -1125,7 +1233,7 @@ export default function Dashboard() {
                   </div>
                 )
               }
-            </div >
+            </div>
           </div >
 
           {/* ── Side Column ── */}
@@ -1293,7 +1401,215 @@ export default function Dashboard() {
                   </p>
                 </div>
               )}
-            </div >
+            </div>
+
+            {/* Savings Box Card (Refined) */}
+            {(!savingsSummary || (savingsSummary.monthlyTarget === 0 && savingsSummary.currentMonthSaved === 0) || hasSkippedSavingsGoal) ? (
+              <div
+                onClick={() => {
+                  setIsEditingSavings(false);
+                  setShowSavingsModal(true);
+                }}
+                style={{
+                  background: "#FFFFFF",
+                  borderRadius: 24,
+                  padding: "32px",
+                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                  border: "1px solid #E2E8F0",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 16,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  minHeight: 200,
+                  position: "relative",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = "#10B981";
+                  e.currentTarget.style.transform = "translateY(-4px)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "#E2E8F0";
+                  e.currentTarget.style.transform = "none";
+                }}
+              >
+                <div style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: "50%",
+                  background: "rgba(16, 185, 129, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#10B981"
+                }}>
+                  <Plus size={32} />
+                </div>
+                <span style={{ fontWeight: 800, fontSize: 16, color: "#0A192F", textAlign: "center" }}>
+                  {t("dash_savings_title")}
+                </span>
+                
+                {/* Add funds button at bottom left */}
+                <div style={{
+                  position: "absolute",
+                  bottom: 16,
+                  [dir === "rtl" ? "left" : "right"]: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  color: "#10B981",
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}>
+                  <PiggyBank size={14} />
+                  <span>{lang === "ar" ? "إضافة أموال للحصالة" : "Add funds to piggy bank"}</span>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: "#FFFFFF",
+                  borderRadius: 24,
+                  padding: 32,
+                  boxShadow: "0 10px 40px rgba(10,25,47,0.03)",
+                  border: "1px solid #E2E8F0",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 20,
+                  position: "relative",
+                }}
+                className="savings-card-hover"
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 14,
+                        background: "rgba(16, 185, 129, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#10B981",
+                      }}
+                    >
+                      <PiggyBank size={24} />
+                    </div>
+                    <div>
+                      <h3
+                        style={{
+                          margin: 0,
+                          fontSize: 15,
+                          fontWeight: 800,
+                          color: "#0A192F",
+                        }}
+                      >
+                        {t("dash_savings_title")}
+                      </h3>
+                      <div style={{ fontSize: 11, color: "#64748B", fontWeight: 600, marginTop: 2 }}>
+                        {new Date().toLocaleDateString(lang === "ar" ? "ar-EG" : "en-US", { month: "long", year: "numeric" })}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    {/* Percentage removed as per user request */}
+
+                    {/* Three dots menu */}
+                    <div style={{ position: "relative" }}>
+                      <button
+                        onClick={() => setShowSavingsMenu(!showSavingsMenu)}
+                        style={{
+                          background: "#F8FAFC",
+                          border: "none",
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#94A3B8",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      
+                      {showSavingsMenu && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: "100%",
+                            [dir === "rtl" ? "left" : "right"]: 0,
+                            background: "#FFF",
+                            borderRadius: 12,
+                            boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                            border: "1px solid #E2E8F0",
+                            zIndex: 100,
+                            minWidth: 120,
+                            padding: 8,
+                            marginTop: 8,
+                          }}
+                        >
+                          <button
+                            onClick={handleOpenEditSavings}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px",
+                              textAlign: dir === "rtl" ? "right" : "left",
+                              background: "none",
+                              border: "none",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: "#0A192F",
+                              cursor: "pointer",
+                              borderRadius: 8,
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#F8FAFC")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                          >
+                            {lang === "ar" ? "تعديل الهدف" : "Edit Goal"}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "10px 0" }}>
+                  <div
+                    style={{
+                      fontSize: 32,
+                      fontWeight: 800,
+                      color: "#0A192F",
+                      fontFamily: "'Manrope', sans-serif",
+                      letterSpacing: "-0.02em",
+                      textAlign: "center"
+                    }}
+                  >
+                    {formatCurrency(savingsSummary?.totalSavings || 0)}
+                  </div>
+                  <div style={{ 
+                    fontSize: 13, 
+                    color: "#64748B", 
+                    fontWeight: 600, 
+                    marginTop: 6,
+                    textAlign: "center"
+                  }}>
+                    {lang === "ar" ? "إجمالي المبلغ المدخر" : "Total Amount Saved"}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Recent Transactions Card */}
             <div
@@ -1473,10 +1789,10 @@ export default function Dashboard() {
                   })
                 )}
               </div>
-            </div >
+            </div>
 
             {/* Financial Goals Progress */}
-            < div
+            <div
               onClick={() => navigate("/goals")}
               style={{
                 background: "#FFFFFF",
@@ -1623,7 +1939,182 @@ export default function Dashboard() {
           .dashboard-grid { grid-template-columns: 1fr; }
         }
         @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 0.3; } 100% { opacity: 0.6; } }
+        
+        .savings-card-hover .savings-more-btn {
+          opacity: 0;
+          transition: opacity 0.2s;
+        }
+        .savings-card-hover:hover .savings-more-btn {
+          opacity: 1;
+        }
+        @media (max-width: 1024px) {
+          .savings-card-hover .savings-more-btn {
+            opacity: 1;
+          }
+        }
       `}</style>
+      {/* Savings Box Modal (Amount-based) */}
+      {showSavingsModal && createPortal(
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(10, 25, 47, 0.65)", // Premium Backdrop
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 99999,
+            padding: 20,
+            direction: dir,
+            animation: "fadeIn 0.3s ease-out",
+          }}
+        >
+          <div
+            style={{
+              background: "#FFF",
+              borderRadius: 28,
+              width: "100%",
+              maxWidth: 420,
+              padding: "40px 32px",
+              boxShadow: "0 25px 60px rgba(0,0,0,0.3)",
+              textAlign: "center",
+              animation: "modalZoom 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+            }}
+          >
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                background: "rgba(16, 185, 129, 0.1)",
+                color: "#10B981",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                margin: "0 auto 24px",
+              }}
+            >
+              <PiggyBank size={32} />
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ fontSize: 22, fontWeight: 800, color: "#0A192F", marginBottom: 8 }}>
+                {isEditingSavings 
+                  ? (lang === "ar" ? "تحديد هدف الادخار" : "Set Savings Goal")
+                  : (lang === "ar" ? "إيداع في الحصالة" : "Piggy Bank Deposit")
+                }
+              </h3>
+              <div style={{ 
+                display: "inline-block", 
+                padding: "6px 12px", 
+                borderRadius: 10, 
+                background: "#F0FDF4", 
+                color: "#10B981", 
+                fontSize: 14, 
+                fontWeight: 700 
+              }}>
+                {lang === "ar" ? "رصيدك الحالي: " : "Current Balance: "}
+                {formatCurrency(totalBalance)}
+              </div>
+            </div>
+
+            <div style={{ textAlign: dir === "rtl" ? "right" : "left", marginBottom: 32 }}>
+              <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#64748B", marginBottom: 12 }}>
+                {isEditingSavings
+                  ? (lang === "ar" ? "كم هو هدفك للتوفير هذا الشهر؟" : "What is your savings goal for this month?")
+                  : (lang === "ar" ? "كم تريد الإيداع الآن؟" : "How much do you want to deposit now?")
+                }
+              </label>
+              <div style={{ position: "relative" }}>
+                <input
+                  type="text"
+                  value={savingsAmount || ""}
+                  onChange={(e) => {
+                    // Allow only English digits
+                    const val = e.target.value.replace(/[^0-9]/g, "");
+                    setSavingsAmount(val ? Number(val) : 0);
+                  }}
+                  placeholder="0.00"
+                  style={{
+                    width: "100%",
+                    padding: "16px 20px",
+                    borderRadius: 16,
+                    border: "2px solid #E2E8F0",
+                    fontSize: 20,
+                    fontWeight: 800,
+                    color: "#0A192F",
+                    outline: "none",
+                    transition: "border-color 0.2s",
+                    fontFamily: "'Manrope', sans-serif",
+                    boxSizing: "border-box",
+                    textAlign: "center"
+                  }}
+                  onFocus={(e) => (e.target.style.borderColor = "#10B981")}
+                  onBlur={(e) => (e.target.style.borderColor = "#E2E8F0")}
+                />
+                <div style={{
+                  position: "absolute",
+                  [dir === "rtl" ? "left" : "right"]: 20,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: "#94A3B8",
+                }}>
+                  {onboardingData.currency || "₪"}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 12 }}>
+              <button
+                onClick={handleSavingsConfirm}
+                disabled={isSavingsLoading || !savingsAmount}
+                style={{
+                  flex: 1,
+                  background: "#10B981",
+                  color: "#FFF",
+                  border: "none",
+                  padding: "16px",
+                  borderRadius: 16,
+                  fontSize: 16,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                  opacity: (isSavingsLoading || !savingsAmount) ? 0.7 : 1,
+                  boxShadow: "0 10px 20px rgba(16,185,129,0.2)"
+                }}
+              >
+                {isSavingsLoading
+                  ? (lang === "ar" ? "جاري الحفظ..." : "Saving...")
+                  : (lang === "ar" ? "تأكيد الحفظ" : "Confirm Savings")}
+              </button>
+              <button
+                onClick={() => {
+                  setShowSavingsModal(false);
+                  setIsEditingSavings(false);
+                }}
+                disabled={isSavingsLoading}
+                style={{
+                  flex: 0.5,
+                  background: "#F1F5F9",
+                  color: "#64748B",
+                  border: "none",
+                  padding: "16px",
+                  borderRadius: 16,
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {lang === "ar" ? "إلغاء" : "Cancel"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
