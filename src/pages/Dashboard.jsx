@@ -17,6 +17,7 @@ import {
   getTransactions,
   getOnboardingData,
   fetchTransactions,
+  addTransaction,
 } from "../services/transactionService";
 import { fetchDashboardSummary } from "../services/dashboardService";
 import { fetchGoals } from "../services/goalService";
@@ -61,6 +62,7 @@ const CAT_ICONS = {
   food: Utensils,
   transport: Bus,
   housing: Building,
+  rent: Home,
   shopping: ShoppingCart,
   utilities: Zap,
   entertainment: Film,
@@ -69,7 +71,7 @@ const CAT_ICONS = {
   bonus: Gift,
   investment: TrendingUp,
   groceries: ShoppingCart,
-  income: Coins,
+  income: Briefcase,
 };
 
 const GOAL_ICONS = {
@@ -84,6 +86,7 @@ const CAT_COLORS = {
   food: { color: "#EA580C", bg: "#FFF7ED" },
   transport: { color: "#64748B", bg: "#F1F5F9" },
   housing: { color: "#3B82F6", bg: "#EFF6FF" },
+  rent: { color: "#3B82F6", bg: "#EFF6FF" },
   shopping: { color: "#EC4899", bg: "#FDF2F8" },
   utilities: { color: "#F59E0B", bg: "#FFFBEB" },
   entertainment: { color: "#8B5CF6", bg: "#F5F3FF" },
@@ -141,6 +144,47 @@ export default function Dashboard() {
   // ── بيانات الـ Onboarding (الدخل الأساسي، العملة) ───────────
   const onboardingData = getOnboardingData();
 
+  // ── منطق إشعار الراتب (Salary Notification Bar) ────────────────
+  const [showSalaryBanner, setShowSalaryBanner] = useState(false);
+  const salaryDay = Number(onboardingData.salaryDay || 27); // الافتراضي يوم 27 إذا لم يحدد
+
+  useEffect(() => {
+    const today = new Date();
+    const currentMonthKey = `salary_added_${today.getFullYear()}_${today.getMonth()}`;
+    const wasSalaryAdded = localStorage.getItem(currentMonthKey);
+
+    if (today.getDate() >= salaryDay && !wasSalaryAdded) {
+      setShowSalaryBanner(true);
+    }
+  }, [salaryDay]);
+
+  const handleAddSalary = async () => {
+    try {
+      const today = new Date();
+      const salaryAmount = Number(onboardingData.income || 0);
+      
+      const newTx = {
+        name: lang === "ar" ? "الراتب الشهري" : "Monthly Salary",
+        amount: salaryAmount,
+        date: today.toISOString().split("T")[0],
+        category: "salary",
+        type: "income",
+      };
+
+      await addTransaction(newTx);
+      
+      const currentMonthKey = `salary_added_${today.getFullYear()}_${today.getMonth()}`;
+      localStorage.setItem(currentMonthKey, "true");
+      
+      // تحديث البيانات فوراً
+      const updatedTxs = await fetchTransactions();
+      setTransactions(updatedTxs);
+      setShowSalaryBanner(false);
+    } catch (err) {
+      console.error("Failed to add salary:", err);
+    }
+  };
+
   // Filter transactions by timeRange for CHART ONLY
   const now = new Date();
   now.setHours(23, 59, 59, 999);
@@ -155,21 +199,35 @@ export default function Dashboard() {
   // ── حساب إجماليات الشهر الحالي فقط ───────────────────────────
   const thisMonth = new Date().getMonth();
   const thisYear  = new Date().getFullYear();
+  
+  // جميع العمليات المسجلة (للميزانية الكلية)
+  const allTxIncome = transactions
+    .filter((t) => t.type === "income")
+    .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+  const allTxExpenses = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+
+  // عمليات الشهر الحالي فقط
   const currentMonthTxs = transactions.filter((tx) => {
     const d = new Date(tx.date);
     return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
   });
 
-  const monthlyIncome = Number(onboardingData.income || 0);
-  const txIncome = currentMonthTxs
-    .filter((t) => t.type === "income" || (t.type !== "expense" && t.amount > 0))
+  const txIncomeCurrentMonth = currentMonthTxs
+    .filter((t) => t.type === "income")
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-  const txExpenses = currentMonthTxs
-    .filter((t) => t.type === "expense" || (t.type !== "income" && t.amount < 0))
+  const txExpensesCurrentMonth = currentMonthTxs
+    .filter((t) => t.type === "expense")
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-  const totalIncome   = monthlyIncome + txIncome;
-  const totalExpenses = txExpenses;
-  const totalBalance  = monthlyIncome + (txIncome - txExpenses);
+
+  // الرصيد يعتمد فقط على العمليات المؤكدة + رصيد البداية (إذا وجد)
+  const initialBalance = Number(onboardingData.initialBalance || 0);
+  const totalBalance  = initialBalance + (allTxIncome - allTxExpenses);
+  
+  // البطاقات تعرض إحصائيات الشهر الحالي
+  const totalIncome   = txIncomeCurrentMonth; 
+  const totalExpenses = txExpensesCurrentMonth;
 
   // المعاملات للعرض: API أولاً، ثم المحلية
   const displayTransactions = transactions.length
@@ -243,20 +301,24 @@ export default function Dashboard() {
   const INCOME_CATEGORIES = new Set(["salary", "freelance", "bonus", "investment", "income"]);
 
   let monthlyChangePercent = null;
-  let isMonthlyPositive = true;
+  let isMonthlyPositive = true; // زيادة في المصروفات تعني نسبة سلبية (أو العكس حسب التفضيل، هنا نتبع الإنفاق)
+  
   if (apiSummary?.monthlyOverview && apiSummary.monthlyOverview.length >= 2) {
     const monthlyData = apiSummary.monthlyOverview;
-    const currentBalance = monthlyData[monthlyData.length - 1]?.netBalance ?? 0;
-    const previousBalance = monthlyData[monthlyData.length - 2]?.netBalance ?? 0;
-    if (previousBalance !== 0) {
-      monthlyChangePercent = ((currentBalance - previousBalance) / Math.abs(previousBalance)) * 100;
-    } else if (currentBalance > 0) {
+    const currentExpenses = monthlyData[monthlyData.length - 1]?.expenses ?? 0;
+    const previousExpenses = monthlyData[monthlyData.length - 2]?.expenses ?? 0;
+    
+    if (previousExpenses !== 0) {
+      // مقارنة المصروفات: إذا قلت المصروفات فهذا شيء إيجابي
+      monthlyChangePercent = ((currentExpenses - previousExpenses) / previousExpenses) * 100;
+      isMonthlyPositive = monthlyChangePercent <= 0; // نقصان المصروفات أخضر
+    } else if (currentExpenses > 0) {
       monthlyChangePercent = 100;
+      isMonthlyPositive = false;
     } else {
       monthlyChangePercent = 0;
     }
-    isMonthlyPositive = monthlyChangePercent >= 0;
-    monthlyChangePercent = parseFloat(monthlyChangePercent.toFixed(1));
+    monthlyChangePercent = parseFloat(Math.abs(monthlyChangePercent).toFixed(1));
   }
 
   // Calculate Category Breakdown — Expenses ONLY (exclude income categories)
@@ -355,6 +417,79 @@ export default function Dashboard() {
         position: "relative",
       }}
     >
+      {/* Salary Notification Banner */}
+      {showSalaryBanner && (
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 100,
+            background: "linear-gradient(90deg, #065F46 0%, #059669 100%)",
+            color: "#FFF",
+            padding: "16px 24px",
+            borderRadius: 16,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            boxShadow: "0 10px 25px rgba(5, 150, 105, 0.2)",
+            marginBottom: 8,
+            animation: "slideDown 0.5s ease",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ background: "rgba(255,255,255,0.2)", padding: 8, borderRadius: 12 }}>
+              <Coins size={20} />
+            </div>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>
+              {lang === "ar" ? "هل استلمت راتبك لهذا الشهر؟" : "Have you received your salary this month?"}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              onClick={handleAddSalary}
+              style={{
+                background: "#FFF",
+                color: "#059669",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: 10,
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.05)")}
+              onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+            >
+              {lang === "ar" ? "نعم، أضفه للحساب" : "Yes, add to account"}
+            </button>
+            <button
+              onClick={() => setShowSalaryBanner(false)}
+              style={{
+                background: "transparent",
+                color: "#FFF",
+                border: "1px solid rgba(255,255,255,0.4)",
+                padding: "8px 16px",
+                borderRadius: 10,
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              {lang === "ar" ? "ليس بعد" : "Not yet"}
+            </button>
+          </div>
+          <style>{`
+            @keyframes slideDown {
+              from { transform: translateY(-20px); opacity: 0; }
+              to { transform: translateY(0); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
       {/* Page Header Actions */}
       <div
         style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
@@ -1183,7 +1318,7 @@ export default function Dashboard() {
                   displayTransactions.slice(0, 4).map((tx) => {
                     const catStyle =
                       CAT_COLORS[tx.category] || CAT_COLORS.default;
-                    const IconComp = CAT_ICONS[tx.category] || Coins;
+                    const IconComp = CAT_ICONS[tx.category?.toLowerCase()] || (tx.type === "income" ? Briefcase : ShoppingCart);
 
                     return (
                       <div

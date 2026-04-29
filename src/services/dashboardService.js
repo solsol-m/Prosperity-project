@@ -20,12 +20,36 @@ function getAuthConfig(params = {}) {
 // TransactionType enum: 0 = Income, 1 = Expense
 export function normalizeApiTransaction(tx) {
   const isExpense = tx.type === 1;
+  const rawCategoryName = (tx.categoryName || '').toLowerCase().trim();
+  
+  let mappedCategory = isExpense ? 'shopping' : 'income'; // Default categories
+  
+  if (rawCategoryName) {
+    if (rawCategoryName.includes('shopping') || rawCategoryName.includes('تسوق') || rawCategoryName.includes('مشتريات')) mappedCategory = 'shopping';
+    else if (rawCategoryName.includes('food') || rawCategoryName.includes('طعام') || rawCategoryName.includes('مطاعم') || rawCategoryName.includes('وجبة')) mappedCategory = 'food';
+    else if (rawCategoryName.includes('transport') || rawCategoryName.includes('مواصلات') || rawCategoryName.includes('نقل')) mappedCategory = 'transport';
+    else if (rawCategoryName.includes('housing') || rawCategoryName.includes('سكن') || rawCategoryName.includes('عقار')) mappedCategory = 'housing';
+    else if (rawCategoryName.includes('rent') || rawCategoryName.includes('ايجار') || rawCategoryName.includes('إيجار')) mappedCategory = 'rent';
+    else if (rawCategoryName.includes('utilities') || rawCategoryName.includes('فاتورة') || rawCategoryName.includes('فواتير') || rawCategoryName.includes('كهرباء')) mappedCategory = 'utilities';
+    else if (rawCategoryName.includes('entertainment') || rawCategoryName.includes('ترفيه') || rawCategoryName.includes('سينما')) mappedCategory = 'entertainment';
+    else if (rawCategoryName.includes('salary') || rawCategoryName.includes('راتب')) mappedCategory = 'salary';
+    else if (rawCategoryName.includes('freelance') || rawCategoryName.includes('عمل حر') || rawCategoryName.includes('عمل_حر')) mappedCategory = 'freelance';
+    else if (rawCategoryName.includes('bonus') || rawCategoryName.includes('مكافأة') || rawCategoryName.includes('هدية')) mappedCategory = 'bonus';
+    else if (rawCategoryName.includes('investment') || rawCategoryName.includes('استثمار')) mappedCategory = 'investment';
+    else mappedCategory = rawCategoryName; // Fallback to raw string if it doesn't match predefined
+  }
+
+  // Ensure income transactions don't default to an expense category (like entertainment or shopping)
+  if (!isExpense && !['salary', 'freelance', 'bonus', 'investment', 'income'].includes(mappedCategory)) {
+    mappedCategory = 'income'; 
+  }
+
   return {
     id: tx.id,
     name: tx.description || (isExpense ? 'مصروف' : 'دخل'),
     amount: isExpense ? -Math.abs(tx.amount) : Math.abs(tx.amount),
     date: tx.transactionDate?.split('T')[0] || new Date().toISOString().split('T')[0],
-    category: (tx.categoryName || '').toLowerCase() || (isExpense ? 'shopping' : 'income'),
+    category: mappedCategory,
     type: isExpense ? 'expense' : 'income',
   };
 }
