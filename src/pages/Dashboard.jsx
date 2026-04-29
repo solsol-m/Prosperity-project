@@ -144,23 +144,31 @@ export default function Dashboard() {
   // ── بيانات الـ Onboarding (الدخل الأساسي، العملة) ───────────
   const onboardingData = getOnboardingData();
 
-  // ── منطق إشعار الراتب (Salary Notification Bar) ────────────────
+  // ── منطق إشعار الراتب (Persistent Banner) ────────────────
   const [showSalaryBanner, setShowSalaryBanner] = useState(false);
-  const salaryDay = Number(onboardingData.salaryDay || 27); // الافتراضي يوم 27 إذا لم يحدد
+  const salaryDay = 1; // يظهر دائماً من بداية الشهر (تاريخ 1)
+
+  const today = new Date();
+  const currentMonthKey = `salary_added_${today.getFullYear()}_${today.getMonth()}`;
+  const isSalaryConfirmed = localStorage.getItem(currentMonthKey) === "true";
+
+  const hasAnyIncome = transactions.some((t) => t.type === "income");
 
   useEffect(() => {
-    const today = new Date();
-    const currentMonthKey = `salary_added_${today.getFullYear()}_${today.getMonth()}`;
-    const wasSalaryAdded = localStorage.getItem(currentMonthKey);
+    if (!isLoading) {
+      const isNewUserNoIncome = !hasAnyIncome;
+      const isMonthlySalaryDue = today.getDate() >= salaryDay && !isSalaryConfirmed;
 
-    if (today.getDate() >= salaryDay && !wasSalaryAdded) {
-      setShowSalaryBanner(true);
+      if (isNewUserNoIncome || isMonthlySalaryDue) {
+        setShowSalaryBanner(true);
+      } else {
+        setShowSalaryBanner(false);
+      }
     }
-  }, [salaryDay]);
+  }, [isLoading, hasAnyIncome, isSalaryConfirmed, salaryDay]);
 
   const handleAddSalary = async () => {
     try {
-      const today = new Date();
       const salaryAmount = Number(onboardingData.income || 0);
       
       const newTx = {
@@ -268,7 +276,6 @@ export default function Dashboard() {
   }
 
   // AI Budget Circle (manual frontend logic)
-  const today = new Date();
   const daysInMonth = new Date(
     today.getFullYear(),
     today.getMonth() + 1,
@@ -297,31 +304,54 @@ export default function Dashboard() {
     }).format(val);
   };
 
-  // ── Monthly Comparison Logic (from API monthlyOverview) ──────────────
-  const INCOME_CATEGORIES = new Set(["salary", "freelance", "bonus", "investment", "income"]);
-
+  // ── Monthly Comparison Logic (API with local fallback) ──────────────
   let monthlyChangePercent = null;
-  let isMonthlyPositive = true; // زيادة في المصروفات تعني نسبة سلبية (أو العكس حسب التفضيل، هنا نتبع الإنفاق)
-  
+  let isMonthlyPositive = true;
+
+  const currentMonth = today.getMonth();
+  const currentYear = today.getFullYear();
+  const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+  const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+  // Local calculation as fallback
+  const localPreviousMonthTxs = transactions.filter((tx) => {
+    const d = new Date(tx.date);
+    return d.getMonth() === previousMonth && d.getFullYear() === previousYear;
+  });
+  const localPrevExpenses = localPreviousMonthTxs
+    .filter((t) => t.type === "expense")
+    .reduce((acc, t) => acc + Math.abs(t.amount), 0);
+
+  // Determine comparison source
+  let currExp = totalExpenses; // from current month transactions
+  let prevExp = localPrevExpenses;
+
+  // Use API data if available and more complete
   if (apiSummary?.monthlyOverview && apiSummary.monthlyOverview.length >= 2) {
-    const monthlyData = apiSummary.monthlyOverview;
-    const currentExpenses = monthlyData[monthlyData.length - 1]?.expenses ?? 0;
-    const previousExpenses = monthlyData[monthlyData.length - 2]?.expenses ?? 0;
-    
-    if (previousExpenses !== 0) {
-      // مقارنة المصروفات: إذا قلت المصروفات فهذا شيء إيجابي
-      monthlyChangePercent = ((currentExpenses - previousExpenses) / previousExpenses) * 100;
-      isMonthlyPositive = monthlyChangePercent <= 0; // نقصان المصروفات أخضر
-    } else if (currentExpenses > 0) {
-      monthlyChangePercent = 100;
-      isMonthlyPositive = false;
-    } else {
-      monthlyChangePercent = 0;
+    const mData = apiSummary.monthlyOverview;
+    const apiCurr = mData[mData.length - 1]?.expenses ?? 0;
+    const apiPrev = mData[mData.length - 2]?.expenses ?? 0;
+    // Only override if API has data
+    if (apiCurr > 0 || apiPrev > 0) {
+      currExp = apiCurr;
+      prevExp = apiPrev;
     }
-    monthlyChangePercent = parseFloat(Math.abs(monthlyChangePercent).toFixed(1));
   }
 
+  if (prevExp !== 0) {
+    monthlyChangePercent = ((currExp - prevExp) / prevExp) * 100;
+    isMonthlyPositive = monthlyChangePercent <= 0; // نقصان المصروفات أخضر
+  } else if (currExp > 0) {
+    monthlyChangePercent = 100;
+    isMonthlyPositive = false;
+  } else {
+    monthlyChangePercent = 0;
+    isMonthlyPositive = true;
+  }
+  monthlyChangePercent = parseFloat(Math.abs(monthlyChangePercent).toFixed(1));
+
   // Calculate Category Breakdown — Expenses ONLY (exclude income categories)
+  const INCOME_CATEGORIES = new Set(["salary", "freelance", "bonus", "investment", "income"]);
   const categoryData = transactions
     .filter((tx) => tx.type === "expense" || (tx.type !== "income" && tx.amount < 0))
     .reduce((acc, tx) => {
@@ -417,13 +447,13 @@ export default function Dashboard() {
         position: "relative",
       }}
     >
-      {/* Salary Notification Banner */}
+      {/* Salary Notification Banner (Top Priority) */}
       {showSalaryBanner && (
         <div
           style={{
             position: "sticky",
             top: 0,
-            zIndex: 100,
+            zIndex: 1000,
             background: "linear-gradient(90deg, #065F46 0%, #059669 100%)",
             color: "#FFF",
             padding: "16px 24px",
@@ -441,7 +471,13 @@ export default function Dashboard() {
               <Coins size={20} />
             </div>
             <span style={{ fontWeight: 700, fontSize: 15 }}>
-              {lang === "ar" ? "هل استلمت راتبك لهذا الشهر؟" : "Have you received your salary this month?"}
+              {!hasAnyIncome
+                ? (lang === "ar" 
+                    ? "أهلاً بك! هل ترغب في إضافة راتبك الحالي لتبدأ تتبع مصاريفك؟" 
+                    : "Welcome! Would you like to add your current salary to start tracking your expenses?")
+                : (lang === "ar" 
+                    ? "هل استلمت راتبك لهذا الشهر؟" 
+                    : "Have you received your salary this month?")}
             </span>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
@@ -479,7 +515,7 @@ export default function Dashboard() {
               onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.1)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              {lang === "ar" ? "ليس بعد" : "Not yet"}
+              {lang === "ar" ? "ليس الآن" : "Not now"}
             </button>
           </div>
           <style>{`
@@ -1135,86 +1171,126 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* AI Radial Ring */}
-              <div
-                style={{
-                  position: "relative",
-                  width: 160,
-                  height: 160,
-                  marginBottom: 20,
-                }}
-              >
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  style={{ direction: "ltr" }}
-                >
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={75}
-                      startAngle={90}
-                      endAngle={-270}
-                      dataKey="value"
-                      stroke="none"
-                      cornerRadius={10}
-                      animationDuration={800}
-                      animationEasing="ease-out"
+              {/* AI Radial Ring or Confirm Message */}
+              {isSalaryConfirmed ? (
+                <>
+                  <div
+                    style={{
+                      position: "relative",
+                      width: 160,
+                      height: 160,
+                      marginBottom: 20,
+                    }}
+                  >
+                    <ResponsiveContainer
+                      width="100%"
+                      height="100%"
+                      style={{ direction: "ltr" }}
                     >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+                      <PieChart>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={75}
+                          startAngle={90}
+                          endAngle={-270}
+                          dataKey="value"
+                          stroke="none"
+                          cornerRadius={10}
+                          animationDuration={800}
+                          animationEasing="ease-out"
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "50%",
+                        left: "50%",
+                        transform: "translate(-50%, -50%)",
+                        textAlign: "center",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 24,
+                          fontWeight: 800,
+                          color: "#0A192F",
+                          fontFamily: "'Manrope', sans-serif",
+                        }}
+                      >
+                        {formatCurrency(aiDailyBudget)}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: "#64748B",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {t("dash_remaining_today")}
+                      </div>
+                    </div>
+                  </div>
+
+                  <p
+                    style={{
+                      textAlign: "center",
+                      color: monthlyRemaining <= 0 ? "#EF4444" : (budgetRatio > 0.8 ? "#EF4444" : "#0A192F"),
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                      margin: 0,
+                      fontWeight: (monthlyRemaining <= 0 || budgetRatio > 0.8) ? 600 : 400,
+                    }}
+                  >
+                    {monthlyRemaining <= 0
+                      ? (lang === "ar" ? "لقد استهلكت كل رصيدك المتاح! يرجى مراجعة إنفاقك بعناية" : "You have consumed all your available balance! Please review your spending carefully.")
+                      : (budgetRatio > 0.8 ? t("dash_pacing_bad") : t("dash_pacing_good"))}
+                  </p>
+                </>
+              ) : (
                 <div
                   style={{
-                    position: "absolute",
-                    top: "50%",
-                    left: "50%",
-                    transform: "translate(-50%, -50%)",
-                    textAlign: "center",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 16,
+                    padding: "20px 0",
+                    textAlign: "center"
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 800,
-                      color: "#0A192F",
-                      fontFamily: "'Manrope', sans-serif",
-                    }}
-                  >
-                    {formatCurrency(aiDailyBudget)}
+                  <div style={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: "50%",
+                    background: "rgba(5, 150, 105, 0.1)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#059669"
+                  }}>
+                    <Wallet size={30} />
                   </div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: "#64748B",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {t("dash_remaining_today")}
-                  </div>
+                  <p style={{
+                    fontSize: 14,
+                    fontWeight: 700,
+                    color: "#065F46",
+                    margin: 0,
+                    lineHeight: 1.5,
+                    maxWidth: 200
+                  }}>
+                    {lang === "ar" 
+                      ? "يرجى تأكيد استلام الراتب لتفعيل الحساب الذكي" 
+                      : "Please confirm salary receipt to activate smart budget"}
+                  </p>
                 </div>
-              </div>
-
-              <p
-                style={{
-                  textAlign: "center",
-                  color: monthlyRemaining <= 0 ? "#EF4444" : (budgetRatio > 0.8 ? "#EF4444" : "#0A192F"),
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                  margin: 0,
-                  fontWeight: (monthlyRemaining <= 0 || budgetRatio > 0.8) ? 600 : 400,
-                }}
-              >
-                {monthlyRemaining <= 0
-                  ? (lang === "ar" ? "لقد استهلكت كل رصيدك المتاح! يرجى مراجعة إنفاقك بعناية" : "You have consumed all your available balance! Please review your spending carefully.")
-                  : (budgetRatio > 0.8 ? t("dash_pacing_bad") : t("dash_pacing_good"))}
-              </p>
+              )}
             </div >
 
             {/* Recent Transactions Card */}
