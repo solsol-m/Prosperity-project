@@ -241,56 +241,43 @@ export default function Dashboard() {
     setIsSavingsLoading(true);
     try {
       if (isEditingSavings) {
-        // تحديث الهدف الشهري فقط في المتصفح
         setSavingsTarget(Number(savingsAmount));
         localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, savingsAmount.toString());
+        setSavingsAmount("");
+        setShowSavingsModal(false);
+        setIsEditingSavings(false);
       } else {
         const depositName = lang === "ar" ? "إيداع توفير" : "Savings Deposit";
-        // 1. استدعاء المزامنة مع الحصالة لتحديث الرصيد المدخر
-        await depositSavings(Number(savingsAmount), new Date().toISOString(), depositName);
+        const amountNum = Number(savingsAmount);
 
-        // 2. تسجيل المعاملة لمرة واحدة كخصم لتظهر في العمليات
+        // 1. استدعاء المزامنة مع الحصالة
+        await depositSavings(amountNum, new Date().toISOString(), depositName);
+
+        // 2. تسجيل المعاملة لمرة واحدة كخصم
         await addTransaction({
           name: depositName,
-          amount: Number(savingsAmount),
+          amount: amountNum,
           date: new Date().toISOString().split("T")[0],
           category: "investment",
           type: "expense",
           transactionType: 1
         });
+
+        // 3. تصفير الحقل وإغلاق المودال فوراً بعد الإيداع
+        setSavingsAmount("");
+        setShowSavingsModal(false);
+
+        // 4. تحديث البيانات فوراً بدون Refresh
+        const [savingsData, summary, txData] = await Promise.all([
+          fetchSavingsSummary(),
+          fetchDashboardSummary(10, 6),
+          fetchTransactions()
+        ]);
+
+        setSavingsSummary(savingsData.success ? savingsData : null);
+        setApiSummary(summary);
+        setTransactions(Array.isArray(txData) ? txData : []);
       }
-
-      // تحديث البيانات من السيرفر لضمان المزامنة
-      const [txData, savingsData, summary] = await Promise.all([
-        fetchTransactions(),
-        fetchSavingsSummary(),
-        fetchDashboardSummary(10, 6),
-      ]);
-      
-      const normalizedTxs = Array.isArray(txData) ? txData : [];
-      const savingsTxs = normalizedTxs.filter(t => 
-        t.name.includes("إيداع توفير") || t.name.toLowerCase().includes("savings deposit")
-      );
-      const totalSavingsAdjust = savingsTxs.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-
-      const adjustedSummary = {
-        ...summary,
-        totalIncome: Math.max(0, summary.totalIncome - totalSavingsAdjust),
-        totalExpenses: summary.totalExpenses + totalSavingsAdjust,
-        totalBalance: summary.totalIncome - summary.totalExpenses - (totalSavingsAdjust * 2) 
-      };
-      adjustedSummary.totalBalance = adjustedSummary.totalIncome - adjustedSummary.totalExpenses;
-
-      setTransactions(normalizedTxs);
-      setSavingsSummary(savingsData.success ? savingsData : null);
-      setApiSummary(adjustedSummary);
-      
-      setHasSkippedSavingsGoal(false);
-      localStorage.removeItem(`skipped_savings_${today.getFullYear()}_${today.getMonth()}`);
-      
-      setSavingsAmount(""); // تصفير الحقل بعد النجاح
-      setShowSavingsModal(false);
-      setIsEditingSavings(false);
     } catch (err) {
       console.error("Savings action failed:", err);
     } finally {
