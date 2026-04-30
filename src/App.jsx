@@ -12,9 +12,6 @@
  *    /goals        → أهداف الادخار           (داخل MainLayout)
  *    /ai-insights  → رؤى الذكاء الاصطناعي   (داخل MainLayout)
  *    /future       → التخطيط المستقبلي        (داخل MainLayout)
- *
- *  TODO (أنيس): عند ربط الـ Backend، أنشئ AuthContext حقيقي
- *    ويضيف Route Guard يمنع غير المسجلين من الدخول للـ Dashboard
  * ============================================================
  */
 
@@ -45,8 +42,8 @@ function ProtectedLayout() {
   const [hasToken] = useState(() =>
     Boolean(
       localStorage.getItem("token") ||
-        localStorage.getItem("auth_token") ||
-        localStorage.getItem("accessToken"),
+      localStorage.getItem("auth_token") ||
+      localStorage.getItem("accessToken"),
     ),
   );
 

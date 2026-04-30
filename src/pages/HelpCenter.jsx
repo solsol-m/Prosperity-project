@@ -71,8 +71,8 @@ const FAQ_DATA = [
     id: 10,
     arQ: "كيف يتم تحديد الدخل الشهري الأساسي الخاص بي؟",
     enQ: "How is my base monthly income determined?",
-    arA: "يتم تحديد دخلك الشهري بناءً على ما أدخلته في الشاشات الترحيبية (Onboarding) عند تسجيل حسابك، ويمكن تحديثه لاحقاً عبر إضافة معاملة 'دخل' ثابتة.",
-    enA: "Your monthly income is determined based on what you entered during onboarding when you created your account, and it can be updated later by adding a fixed 'Income' transaction.",
+    arA: "يتم تحديد دخلك الشهري بناءً على ما أدخلته في الشاشات الترحيبية (Onboarding) عند تسجيل حسابك، ويمكن تحديثه لاحقاً من الملف الشخصي.",
+    enA: "Your monthly income is determined based on what you entered during onboarding when you created your account, and it can be updated later from your profile.",
   }
 ];
 
@@ -135,9 +135,9 @@ export default function HelpCenter() {
         e.currentTarget.style.background = "#FFFFFF";
       }}
     >
-      <div style={{ 
-        width: 56, height: 56, borderRadius: 16, background: bg, 
-        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 
+      <div style={{
+        width: 56, height: 56, borderRadius: 16, background: bg,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
       }}>
         {icon}
       </div>
@@ -145,8 +145,8 @@ export default function HelpCenter() {
         <div style={{ fontSize: 13, fontWeight: 700, color: "#64748B", marginBottom: 6 }}>
           {title}
         </div>
-        <div style={{ 
-          fontSize: 16, fontWeight: 800, color: "#0A192F", 
+        <div style={{
+          fontSize: 16, fontWeight: 800, color: "#0A192F",
           fontFamily: "'Manrope', sans-serif", letterSpacing: -0.5,
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
         }}>
@@ -164,14 +164,14 @@ export default function HelpCenter() {
           {lang === "ar" ? "مركز المساعدة" : "Help Center"}
         </h1>
         <p style={{ margin: 0, fontSize: 16, color: "#64748B" }}>
-          {lang === "ar" 
-            ? "نحن هنا لمساعدتك! تصفح الأسئلة الشائعة أو تواصل معنا مباشرة." 
+          {lang === "ar"
+            ? "نحن هنا لمساعدتك! تصفح الأسئلة الشائعة أو تواصل معنا مباشرة."
             : "We're here to help! Browse FAQs or contact us directly."}
         </p>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-        
+
         {/* قسم الأسئلة الشائعة (FAQ Accordion) - أصبح بالأعلى */}
         <div style={{ background: "#FFFFFF", borderRadius: 24, padding: 32, boxShadow: "0 20px 40px rgba(10,25,47,0.04)", border: "1px solid #E2E8F0" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 24 }}>
@@ -182,38 +182,38 @@ export default function HelpCenter() {
               {lang === "ar" ? "الأسئلة الشائعة" : "Frequently Asked Questions"}
             </h2>
           </div>
-          
+
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {FAQ_DATA.map((faq) => {
               const isOpen = openFaq === faq.id;
               return (
-                <div 
-                  key={faq.id} 
-                  style={{ 
-                    border: `2px solid ${isOpen ? "#10B981" : "#E2E8F0"}`, 
-                    borderRadius: 16, overflow: "hidden", transition: "all 0.3s" 
+                <div
+                  key={faq.id}
+                  style={{
+                    border: `2px solid ${isOpen ? "#10B981" : "#E2E8F0"}`,
+                    borderRadius: 16, overflow: "hidden", transition: "all 0.3s"
                   }}
                 >
                   <button
                     onClick={() => toggleFaq(faq.id)}
                     style={{
-                      width: "100%", padding: "20px 24px", 
+                      width: "100%", padding: "20px 24px",
                       background: isOpen ? "#F0FDF4" : "#FFFFFF", border: "none",
-                      display: "flex", alignItems: "center", justifyContent: "space-between", 
-                      cursor: "pointer", textAlign: dir === "rtl" ? "right" : "left", 
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      cursor: "pointer", textAlign: dir === "rtl" ? "right" : "left",
                       transition: "background 0.3s", outline: "none"
                     }}
                   >
                     <span style={{ fontSize: 16, fontWeight: 700, color: isOpen ? "#059669" : "#0A192F" }}>
                       {lang === "ar" ? faq.arQ : faq.enQ}
                     </span>
-                    <ChevronDown 
-                      size={20} 
-                      color={isOpen ? "#10B981" : "#64748B"} 
-                      style={{ 
-                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)", 
+                    <ChevronDown
+                      size={20}
+                      color={isOpen ? "#10B981" : "#64748B"}
+                      style={{
+                        transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
                         transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)", flexShrink: 0
-                      }} 
+                      }}
                     />
                   </button>
                   <AnimatePresence>
@@ -225,9 +225,9 @@ export default function HelpCenter() {
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         style={{ overflow: "hidden" }}
                       >
-                        <div style={{ 
-                          padding: "0 24px 24px", fontSize: 15, fontWeight: 600, color: "#475569", 
-                          lineHeight: 1.8, background: "#F0FDF4" 
+                        <div style={{
+                          padding: "0 24px 24px", fontSize: 15, fontWeight: 600, color: "#475569",
+                          lineHeight: 1.8, background: "#F0FDF4"
                         }}>
                           {lang === "ar" ? faq.arA : faq.enA}
                         </div>
@@ -245,9 +245,9 @@ export default function HelpCenter() {
           <h2 style={{ margin: "0 0 32px", fontSize: 20, fontWeight: 800, color: "#0A192F" }}>
             {lang === "ar" ? "فريق الدعم الفني" : "Support Team"}
           </h2>
-          
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 32 }}>
-            
+
             {/* عمود الواتساب */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -257,7 +257,7 @@ export default function HelpCenter() {
                 </h3>
               </div>
               {whatsappContacts.map((contact, i) => (
-                <ContactCard 
+                <ContactCard
                   key={i}
                   link={contact.link}
                   value={contact.value}
@@ -278,7 +278,7 @@ export default function HelpCenter() {
                 </h3>
               </div>
               {emailContacts.map((contact, i) => (
-                <ContactCard 
+                <ContactCard
                   key={i}
                   link={contact.link}
                   value={contact.value}
@@ -292,7 +292,7 @@ export default function HelpCenter() {
 
           </div>
         </div>
-        
+
       </div>
     </div>
   );
