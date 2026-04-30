@@ -43,6 +43,7 @@ export default function Goals() {
   const onboardingData = getOnboardingData();
   const localTxs = getTransactions();
   const baseIncome = onboardingData.income ? Number(onboardingData.income) : 5000;
+  const initialBalance = Number(onboardingData.initialBalance || 0);
   const expensesOnly = localTxs
     .filter((t) => t.type === "expense" || (t.type !== "income" && t.amount < 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
@@ -50,7 +51,9 @@ export default function Goals() {
   const addedIncome = localTxs
     .filter((t) => t.type === "income" || (t.type !== "expense" && t.amount > 0))
     .reduce((acc, t) => acc + Math.abs(t.amount), 0);
-  const initialTotalBalance = baseIncome + addedIncome - expensesOnly;
+  // الرصيد الصحيح: رصيد البداية + مجموع الدخل الفعلي من المعاملات - المصروفات
+  // (بدون إضافة baseIncome لتجنب الازدواجية مع معاملات الراتب)
+  const initialTotalBalance = initialBalance + addedIncome - expensesOnly;
 
   const [goals, setGoals] = useState([]);
   const [showModal, setShowModal] = useState(false);

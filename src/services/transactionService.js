@@ -227,9 +227,13 @@ export async function fetchUserProfile() {
       goalType: data?.financialGoalType || "emergency",
       goalTitle: data?.financialGoalType || "Emergency Fund",
       targetAmount: Number(data?.targetAmount || 50000),
-      currency: data?.preferredCurrency || "USD",
+      currency: data?.preferredCurrency || "ILS",
     };
     writeOnboardingCache(normalized);
+    // ثبات العملة: احفظ العملة في مفتاح منفصل لا يُطغى عليه عند Refresh
+    if (data?.preferredCurrency && !localStorage.getItem("preferred_currency")) {
+      localStorage.setItem("preferred_currency", data.preferredCurrency);
+    }
     return normalized;
   } catch (err) {
     console.warn("[TransactionService] fetchUserProfile failed, using cache:", err.message);

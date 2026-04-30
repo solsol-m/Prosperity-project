@@ -5,7 +5,6 @@ import {
   ArrowLeftRight,
   BrainCircuit,
   Target,
-  TrendingUp,
   HelpCircle,
   User,
   LogOut,
@@ -32,7 +31,6 @@ export default function Sidebar({ isOpen, onClose }) {
     { to: "/transactions", label: t("nav_transactions"), icon: ArrowLeftRight },
     { to: "/ai-insights", label: t("nav_ai"), icon: BrainCircuit },
     { to: "/goals", label: t("nav_goals"), icon: Target },
-    { to: "/future", label: t("nav_future"), icon: TrendingUp },
   ];
 
   // إغلاق القائمة عند الضغط خارجها

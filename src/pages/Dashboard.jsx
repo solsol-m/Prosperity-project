@@ -10,7 +10,7 @@
  *   - حالة فارغة (Empty State) إذا لم تكن هناك عمليات
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useLanguage } from "../context/LanguageContext";
@@ -103,6 +103,38 @@ const CAT_COLORS = {
   default: { color: "#94A3B8", bg: "#F8FAFC" },
 };
 
+// ── Toast Component ─────────────────────────────────────────────
+function Toast({ message, visible }) {
+  if (!visible) return null;
+  return createPortal(
+    <div style={{
+      position: "fixed",
+      bottom: 32,
+      left: "50%",
+      transform: "translateX(-50%)",
+      background: "#059669",
+      color: "#FFF",
+      padding: "14px 28px",
+      borderRadius: 14,
+      fontWeight: 700,
+      fontSize: 15,
+      boxShadow: "0 10px 30px rgba(5,150,105,0.3)",
+      zIndex: 999999,
+      animation: "slideUp 0.4s ease",
+      whiteSpace: "nowrap",
+    }}>
+      ✅ {message}
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateX(-50%) translateY(20px); opacity: 0; }
+          to   { transform: translateX(-50%) translateY(0);   opacity: 1; }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+}
+
 export default function Dashboard() {
   const { t, dir, lang } = useLanguage();
   const navigate = useNavigate();
@@ -134,6 +166,16 @@ export default function Dashboard() {
   const [hasSkippedSavingsGoal, setHasSkippedSavingsGoal] = useState(() => {
     return localStorage.getItem(`skipped_savings_${today.getFullYear()}_${today.getMonth()}`) === "true";
   });
+
+  // ── Toast State ──────────────────────────────────────────────
+  const [toastMsg, setToastMsg] = useState("");
+  const [toastVisible, setToastVisible] = useState(false);
+
+  const showToast = useCallback((msg) => {
+    setToastMsg(msg);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 3000);
+  }, []);
 
   // ── تحميل البيانات: API أولاً ثم localStorage كبديل ────────────────
   useEffect(() => {
@@ -184,7 +226,13 @@ export default function Dashboard() {
   }, [token]);
 
   // ── بيانات الـ Onboarding (الدخل الأساسي، العملة) ───────────
-  const onboardingData = getOnboardingData();
+  // ثبات العملة: نقرأ العملة المختارة من localStorage دائماً ونمنع تجاوزها
+  const onboardingDataRaw = getOnboardingData();
+  const persistedCurrency = localStorage.getItem("preferred_currency");
+  const onboardingData = {
+    ...onboardingDataRaw,
+    currency: persistedCurrency || onboardingDataRaw.currency || "ILS",
+  };
 
   // ── منطق إشعار الراتب (Persistent Banner) ────────────────
   const [showSalaryBanner, setShowSalaryBanner] = useState(false);
@@ -208,8 +256,46 @@ export default function Dashboard() {
     }
   }, [isLoading, hasAnyIncome, isSalaryConfirmed, salaryDay]);
 
+  const handleUpdateSalary = async (newAmount) => {
+    try {
+      setIsLoading(true);
+      const salaryAmount = Number(newAmount || onboardingData.income || 0);
+
+      const newTx = {
+        name: lang === "ar" ? "الراتب الشهري" : "Monthly Salary",
+        amount: salaryAmount,
+        date: today.toISOString().split("T")[0],
+        category: "salary",
+        type: "income",
+      };
+
+      await addTransaction(newTx);
+
+      // تحديث البيانات فوراً
+      const [updatedTxs, summary, savingsData] = await Promise.all([
+        fetchTransactions(),
+        fetchDashboardSummary(10, 6),
+        fetchSavingsSummary(),
+      ]);
+      setTransactions(Array.isArray(updatedTxs) ? updatedTxs : []);
+      setApiSummary(summary);
+      setSavingsSummary(savingsData.success ? savingsData : null);
+
+      // إظهار Toast نجاح
+      showToast(lang === "ar" ? "تم تحديث الراتب بنجاح ✓" : "Salary updated successfully ✓");
+
+      // إعادة إظهار البانر ليتفاعل معه المستخدم
+      setShowSalaryBanner(true);
+    } catch (err) {
+      console.error("Failed to update salary:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleAddSalary = async () => {
     try {
+      setIsLoading(true);
       const salaryAmount = Number(onboardingData.income || 0);
 
       const newTx = {
@@ -227,13 +313,18 @@ export default function Dashboard() {
 
       // تحديث البيانات فوراً
       const updatedTxs = await fetchTransactions();
-      setTransactions(updatedTxs);
+      setTransactions(Array.isArray(updatedTxs) ? updatedTxs : []);
       setShowSalaryBanner(false);
+
+      // إظهار Toast نجاح
+      showToast(lang === "ar" ? "تم إضافة الراتب بنجاح ✓" : "Salary added successfully ✓");
 
       // Open Savings Modal
       setShowSavingsModal(true);
     } catch (err) {
       console.error("Failed to add salary:", err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -241,8 +332,9 @@ export default function Dashboard() {
     setIsSavingsLoading(true);
     try {
       if (isEditingSavings) {
+        // وضع تعديل الهدف: حفظ الهدف محلياً فقط بدون استدعاء API
         setSavingsTarget(Number(savingsAmount));
-        localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, savingsAmount.toString());
+        localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, String(Number(savingsAmount)));
         setSavingsAmount("");
         setShowSavingsModal(false);
         setIsEditingSavings(false);
@@ -250,24 +342,17 @@ export default function Dashboard() {
         const depositName = lang === "ar" ? "إيداع توفير" : "Savings Deposit";
         const amountNum = Number(savingsAmount);
 
-        // 1. استدعاء المزامنة مع الحصالة
+        if (!amountNum || amountNum <= 0) return;
+
+        // استدعاء واحد فقط: الإيداع في الحصالة عبر API الخاص بها
+        // هذا يسجّل العملية ويخصم المبلغ تلقائياً — لا داعي لـ addTransaction هنا
         await depositSavings(amountNum, new Date().toISOString(), depositName);
 
-        // 2. تسجيل المعاملة لمرة واحدة كخصم
-        await addTransaction({
-          name: depositName,
-          amount: amountNum,
-          date: new Date().toISOString().split("T")[0],
-          category: "investment",
-          type: "expense",
-          transactionType: 1
-        });
-
-        // 3. تصفير الحقل وإغلاق المودال فوراً بعد الإيداع
+        // إغلاق المودال فوراً
         setSavingsAmount("");
         setShowSavingsModal(false);
 
-        // 4. تحديث البيانات فوراً بدون Refresh
+        // تحديث البيانات فوراً بدون Refresh
         const [savingsData, summary, txData] = await Promise.all([
           fetchSavingsSummary(),
           fetchDashboardSummary(10, 6),
@@ -277,6 +362,8 @@ export default function Dashboard() {
         setSavingsSummary(savingsData.success ? savingsData : null);
         setApiSummary(summary);
         setTransactions(Array.isArray(txData) ? txData : []);
+
+        showToast(lang === "ar" ? "تم الإيداع في الحصالة بنجاح ✓" : "Deposit saved to piggy bank ✓");
       }
     } catch (err) {
       console.error("Savings action failed:", err);
@@ -400,14 +487,20 @@ export default function Dashboard() {
     { name: "Remaining", value: remainingPercent, color: "#F1F5F9" },
   ];
 
-  // تنسيق العملة — يستخدم en-US دائماً لضمان النقطة العشرية
+  // تنسيق العملة — يستخدم en-US دائماً لضمان النقطة العشرية + العملة محفوظة من localStorage
+  const activeCurrency = localStorage.getItem("preferred_currency") || onboardingData.currency || "ILS";
   const formatCurrency = (val) => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: onboardingData.currency || "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(val);
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: activeCurrency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(val);
+    } catch {
+      // fallback لو العملة غير معروفة
+      return `${activeCurrency} ${Number(val).toFixed(2)}`;
+    }
   };
 
   // ── Monthly Comparison Logic (API with local fallback) ──────────────
@@ -554,7 +647,8 @@ export default function Dashboard() {
   }
 
   return (
-
+    <>
+    <Toast message={toastMsg} visible={toastVisible} />
     <div
       className="animate-fadeIn"
       style={{
@@ -2152,6 +2246,7 @@ export default function Dashboard() {
         document.body
       )}
     </div>
+    </>
   );
 }
 
