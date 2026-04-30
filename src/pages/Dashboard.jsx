@@ -552,7 +552,8 @@ export default function Dashboard() {
   monthlyChangePercent = parseFloat(Math.abs(monthlyChangePercent).toFixed(1));
 
   // Calculate Category Breakdown — Expenses ONLY (exclude income categories)
-  const INCOME_CATEGORIES = new Set(["salary", "freelance", "bonus", "investment", "income"]);
+  // ملاحظة: "investment" محذوف من الاستبعاد لكي تظهر إيداعات الحصالة والأهداف في الدائرة
+  const INCOME_CATEGORIES = new Set(["salary", "freelance", "bonus", "income"]);
   const categoryData = transactions
     .filter((tx) => tx.type === "expense" || (tx.type !== "income" && tx.amount < 0))
     .reduce((acc, tx) => {
@@ -1664,6 +1665,30 @@ export default function Dashboard() {
                           }}
                         >
                           <button
+                            onClick={() => {
+                              setIsEditingSavings(false);
+                              setSavingsAmount("");
+                              setShowSavingsModal(true);
+                              setShowSavingsMenu(false);
+                            }}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px",
+                              textAlign: dir === "rtl" ? "right" : "left",
+                              background: "none",
+                              border: "none",
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: "#10B981",
+                              cursor: "pointer",
+                              borderRadius: 8,
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = "#F0FDF4")}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                          >
+                            {lang === "ar" ? "إيداع جديد" : "New Deposit"}
+                          </button>
+                          <button
                             onClick={handleOpenEditSavings}
                             style={{
                               width: "100%",
@@ -1734,9 +1759,47 @@ export default function Dashboard() {
                     </div>
                     
                     <div style={{ fontSize: 12, color: "#64748B", fontWeight: 600, textAlign: dir === "rtl" ? "right" : "left" }}>
-                      {lang === "ar" ? "المتبقي للهدف:" : "Remaining for goal:"} <span style={{ color: "#0A192F", fontWeight: 700, fontFamily: "'Manrope', sans-serif" }}>{new Intl.NumberFormat("en-US", { style: "currency", currency: onboardingData.currency || "USD" }).format(remainingSavings)}</span>
+                      {lang === "ar" ? "المتبقي للهدف:" : "Remaining for goal:"} <span style={{ color: "#0A192F", fontWeight: 700, fontFamily: "'Manrope', sans-serif" }}>{new Intl.NumberFormat("en-US", { style: "currency", currency: activeCurrency }).format(remainingSavings)}</span>
                     </div>
                   </div>
+
+                  {/* زر إيداع جديد — يظهر دائماً في البطاقة النشطة */}
+                  <button
+                    onClick={() => {
+                      setIsEditingSavings(false);
+                      setSavingsAmount("");
+                      setShowSavingsModal(true);
+                    }}
+                    style={{
+                      marginTop: 16,
+                      width: "100%",
+                      padding: "12px",
+                      borderRadius: 12,
+                      border: "2px solid #10B981",
+                      background: "transparent",
+                      color: "#10B981",
+                      fontWeight: 700,
+                      fontSize: 14,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      transition: "all 0.2s",
+                      fontFamily: "'Inter', 'Cairo', sans-serif",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "#10B981";
+                      e.currentTarget.style.color = "#FFF";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "#10B981";
+                    }}
+                  >
+                    <PiggyBank size={16} />
+                    {lang === "ar" ? "إيداع في الحصالة" : "Deposit to Piggy Bank"}
+                  </button>
                 </div>
               </div>
             )}

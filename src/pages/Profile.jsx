@@ -346,13 +346,19 @@ export default function Profile() {
         goalTitle: nextProfile.goalTitle || profile?.goalTitle,
         targetAmount: Number(nextProfile.targetAmount || profile?.targetAmount || 0),
       });
+
+      // إعادة إظهار بانر الراتب في الداشبورد عند تحديث الدخل
+      // يتم مسح مفتاح التأكيد حتى يُطلب من المستخدم تأكيد استلام الراتب الجديد
+      const _today = new Date();
+      localStorage.removeItem(`salary_added_${_today.getFullYear()}_${_today.getMonth()}`);
+
       setToast({
         show: true,
         type: "success",
         message:
           lang === "ar"
-            ? "تم تحديث الدخل الشهري بنجاح."
-            : "Monthly income updated successfully.",
+            ? "تم تحديث الدخل الشهري بنجاح. سيظهر إشعار الراتب في الداشبورد."
+            : "Monthly income updated successfully. Salary banner will show in Dashboard.",
       });
     } catch (error) {
       console.error("Failed to update monthly income:", error);
@@ -398,6 +404,9 @@ export default function Profile() {
         goalTitle: nextProfile.goalTitle || profile?.goalTitle,
         targetAmount: Number(nextProfile.targetAmount || profile?.targetAmount || 0),
       });
+
+      // حفظ العملة في المفتاح الموحد الذي يعتمد عليه الداشبورد وبقية الصفحات
+      localStorage.setItem("preferred_currency", selectedCurrency);
 
       setToast({
         show: true,
