@@ -212,9 +212,13 @@ export async function deleteTransaction(id) {
 
 export function getOnboardingData() {
   try {
-    return JSON.parse(localStorage.getItem(getOnboardingKey()) || "{}");
+    const data = JSON.parse(localStorage.getItem(getOnboardingKey()) || "{}");
+    const pref = localStorage.getItem("preferred_currency");
+    if (pref) data.currency = pref;
+    return data;
   } catch {
-    return {};
+    const pref = localStorage.getItem("preferred_currency");
+    return pref ? { currency: pref } : {};
   }
 }
 
