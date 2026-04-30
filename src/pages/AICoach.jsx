@@ -97,15 +97,29 @@ export default function AICoach() {
         minHeight: "80vh"
       }}
     >
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: "#0A192F", fontFamily: fontHead }}>
-          {lang === "ar" ? "مدرب الذكاء الاصطناعي" : "AI Coach"}
-        </h1>
-        <p style={{ margin: 0, fontSize: 16, color: "#64748B" }}>
-          {lang === "ar" 
-            ? "احصل على نصائح مالية ذكية ومخصصة بناءً على سلوكك المالي لتصل إلى أهدافك بسرعة." 
-            : "Get smart, personalized financial advice based on your spending behavior to reach your goals faster."}
-        </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{
+          width: 48,
+          height: 48,
+          borderRadius: 16,
+          background: "rgba(16, 185, 129, 0.1)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#10B981",
+        }}>
+          <Bot size={28} strokeWidth={2.5} />
+        </div>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: "#0A192F", fontFamily: fontHead }}>
+            {lang === "ar" ? "مدرب الذكاء الاصطناعي" : "AI Coach"}
+          </h1>
+          <p style={{ margin: "4px 0 0", fontSize: 16, color: "#64748B" }}>
+            {lang === "ar" 
+              ? "احصل على نصائح مالية ذكية ومخصصة بناءً على سلوكك المالي لتصل إلى أهدافك بسرعة." 
+              : "Get smart, personalized financial advice based on your spending behavior to reach your goals faster."}
+          </p>
+        </div>
       </div>
 
       <div style={{

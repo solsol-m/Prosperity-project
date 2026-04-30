@@ -244,15 +244,29 @@ export default function Goals() {
     <div style={{ padding: "32px", maxWidth: 1200, margin: "0 auto", direction: dir }}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 32 }}>
-        <div>
-          <h1 style={{ fontSize: 32, fontWeight: 800, color: "#0A192F", margin: "0 0 8px", fontFamily: "'Manrope', sans-serif" }}>
-            {lang === "ar" ? "أهداف الادخار" : "Savings Goals"}
-          </h1>
-          <p style={{ fontSize: 15, color: "#64748B", margin: 0, maxWidth: 500, lineHeight: 1.6 }}>
-            {lang === "ar"
-              ? "تتبع تقدمك نحو المعالم المالية الرئيسية. تحلل نماذج الذكاء الاصطناعي لدينا التدفق النقدي الخاص بك لتحسين طريقك."
-              : "Track your progress toward key financial milestones. Our AI models analyze your cash flow to optimize your path to prosperity."}
-          </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: 16,
+            background: "rgba(16, 185, 129, 0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#10B981",
+          }}>
+            <Target size={28} strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: "#0A192F", margin: "0 0 4px", fontFamily: "'Manrope', sans-serif" }}>
+              {lang === "ar" ? "أهداف الادخار" : "Savings Goals"}
+            </h1>
+            <p style={{ fontSize: 15, color: "#64748B", margin: 0, maxWidth: 500, lineHeight: 1.6 }}>
+              {lang === "ar"
+                ? "تتبع تقدمك نحو المعالم المالية الرئيسية. تحلل نماذج الذكاء الاصطناعي لدينا التدفق النقدي الخاص بك لتحسين طريقك."
+                : "Track your progress toward key financial milestones. Our AI models analyze your cash flow to optimize your path to prosperity."}
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setShowModal(true)}

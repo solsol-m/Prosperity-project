@@ -48,6 +48,7 @@ import {
   PiggyBank,
   MoreVertical,
   MoreHorizontal,
+  LayoutDashboard,
 } from "lucide-react";
 import {
   AreaChart,
@@ -476,16 +477,19 @@ export default function Dashboard() {
     });
   }
 
-  // AI Budget Circle (manual frontend logic)
+  // AI Budget Circle (using API data instead of local calculation)
+  const aiApiIncome = apiSummary?.totalIncome ?? totalIncome;
+  const aiApiExpenses = apiSummary?.totalExpenses ?? totalExpenses;
+  
   const daysInMonth = new Date(
     today.getFullYear(),
     today.getMonth() + 1,
     0,
   ).getDate();
   const daysRemaining = Math.max(1, daysInMonth - today.getDate() + 1);
-  const monthlyRemaining = totalIncome - totalExpenses;
+  const monthlyRemaining = aiApiIncome - aiApiExpenses;
   const aiDailyBudget = monthlyRemaining / daysRemaining;
-  const budgetRatio = totalIncome > 0 ? totalExpenses / totalIncome : 0;
+  const budgetRatio = aiApiIncome > 0 ? aiApiExpenses / aiApiIncome : 0;
   const spentPercent = Math.min(100, Math.max(0, budgetRatio * 100));
   const remainingPercent = Math.max(0, 100 - spentPercent);
   const budgetColor = spentPercent > 80 ? "#EF4444" : "#10B981";
@@ -750,8 +754,32 @@ export default function Dashboard() {
       )}
       {/* Page Header Actions */}
       <div
-        style={{ display: "flex", justifyContent: "flex-end", width: "100%" }}
+        style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginBottom: 16 }}
       >
+        {/* Page Title */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: 16,
+            background: "rgba(16, 185, 129, 0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#10B981",
+          }}>
+            <LayoutDashboard size={28} strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#0A192F", fontFamily: "'Manrope', 'Cairo', sans-serif" }}>
+              {lang === "ar" ? "لوحة البيانات" : "Dashboard"}
+            </h1>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "#64748B", fontWeight: 500 }}>
+              {lang === "ar" ? "نظرة عامة على حساباتك" : "Overview of your accounts"}
+            </p>
+          </div>
+        </div>
+
         <button
           onClick={() => setShowModal(true)}
           style={{

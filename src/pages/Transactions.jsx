@@ -20,6 +20,7 @@ import {
   Gift,
   Briefcase,
   AlertTriangle,
+  FileText,
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import {
@@ -239,22 +240,36 @@ export default function Transactions() {
             gap: 16,
           }}
         >
-          <div>
-            <h1
-              style={{
-                fontFamily: font.headline,
-                fontSize: 32,
-                fontWeight: 800,
-                color: "#0A192F",
-                margin: "0 0 8px",
-                letterSpacing: -1,
-              }}
-            >
-              {t("tx_title")}
-            </h1>
-            <p style={{ fontSize: 15, color: "#64748B", margin: 0 }}>
-              {t("tx_subtitle")}
-            </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{
+              width: 48,
+              height: 48,
+              borderRadius: 16,
+              background: "rgba(16, 185, 129, 0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#10B981",
+            }}>
+              <FileText size={28} strokeWidth={2.5} />
+            </div>
+            <div>
+              <h1
+                style={{
+                  fontFamily: font.headline,
+                  fontSize: 32,
+                  fontWeight: 800,
+                  color: "#0A192F",
+                  margin: "0 0 4px",
+                  letterSpacing: -1,
+                }}
+              >
+                {t("tx_title")}
+              </h1>
+              <p style={{ fontSize: 15, color: "#64748B", margin: 0 }}>
+                {t("tx_subtitle")}
+              </p>
+            </div>
           </div>
           <div style={{ display: "flex", gap: 12 }}>
             {/* Mobile Filter Button */}

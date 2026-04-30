@@ -5,7 +5,7 @@ import { fetchDashboardSummary } from "../services/dashboardService";
 import { fetchTransactions, getOnboardingData } from "../services/transactionService";
 import { fetchGoals } from "../services/goalService";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
-import { TrendingDown, TrendingUp, Minus, AlertTriangle, ShieldCheck, Lightbulb } from "lucide-react";
+import { TrendingDown, TrendingUp, Minus, AlertTriangle, ShieldCheck, Lightbulb, BrainCircuit } from "lucide-react";
 
 const cv = { hidden: {}, visible: { transition: { staggerChildren: 0.06 } } };
 const iv = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { duration: 0.3 } } };
@@ -182,13 +182,27 @@ export default function AIInsights() {
         style={{ display: "flex", flexDirection: "column", gap: 20, direction: dir, fontFamily: "'Inter','Cairo',sans-serif" }}>
 
         {/* Header */}
-        <motion.div variants={iv}>
-          <h1 style={{ margin: "0 0 5px", fontSize: 26, fontWeight: 800, color: "#0A192F", fontFamily: "'Manrope','Cairo',sans-serif", letterSpacing: -0.5 }}>
-            {lang === "ar" ? "رؤى الذكاء الاصطناعي" : "AI Insights"}
-          </h1>
-          <p style={{ margin: 0, fontSize: 14, color: "#64748B" }}>
-            {lang === "ar" ? "تحليل حقيقي مبني على معاملاتك الفعلية." : "Real analysis computed from your actual transactions."}
-          </p>
+        <motion.div variants={iv} style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: 16,
+            background: "rgba(16, 185, 129, 0.1)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#10B981",
+          }}>
+            <BrainCircuit size={28} strokeWidth={2.5} />
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: "#0A192F", fontFamily: "'Manrope','Cairo',sans-serif", letterSpacing: -0.5 }}>
+              {lang === "ar" ? "رؤى الذكاء الاصطناعي" : "AI Insights"}
+            </h1>
+            <p style={{ margin: "4px 0 0", fontSize: 14, color: "#64748B" }}>
+              {lang === "ar" ? "تحليل حقيقي مبني على معاملاتك الفعلية." : "Real analysis computed from your actual transactions."}
+            </p>
+          </div>
         </motion.div>
 
         {loading ? (
