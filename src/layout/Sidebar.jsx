@@ -11,6 +11,7 @@ import {
   Globe,
   X,
   ChevronUp,
+  Bot
 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 import { logoutUser, getCurrentUser } from "../services/authService";
@@ -30,6 +31,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { to: "/dashboard", label: t("nav_dashboard"), icon: LayoutDashboard },
     { to: "/transactions", label: t("nav_transactions"), icon: ArrowLeftRight },
     { to: "/ai-insights", label: t("nav_ai"), icon: BrainCircuit },
+    { to: "/ai-coach", label: lang === "ar" ? "مدرب الذكاء الاصطناعي" : "AI Coach", icon: Bot },
     { to: "/goals", label: t("nav_goals"), icon: Target },
   ];
 

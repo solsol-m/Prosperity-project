@@ -35,6 +35,7 @@ import Dashboard from "./pages/Dashboard";
 import Transactions from "./pages/Transactions";
 import Goals from "./pages/Goals";
 import AIInsights from "./pages/AIInsights";
+import AICoach from "./pages/AICoach";
 import FuturePlanning from "./pages/FuturePlanning";
 import Profile from "./pages/Profile";
 
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/ai-insights" element={<AIInsights />} />
+            <Route path="/ai-coach" element={<AICoach />} />
             <Route path="/future" element={<FuturePlanning />} />
             <Route path="/profile" element={<Profile />} />
 
