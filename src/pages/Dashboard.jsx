@@ -332,9 +332,11 @@ export default function Dashboard() {
     setIsSavingsLoading(true);
     try {
       if (isEditingSavings) {
-        // وضع تعديل الهدف: حفظ الهدف محلياً فقط بدون استدعاء API
-        setSavingsTarget(Number(savingsAmount));
-        localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, String(Number(savingsAmount)));
+        // وضع تعديل الهدف: حساب المبلغ من النسبة المئوية
+        const calculatedTarget = userDataSalary * (Number(savingsAmount) / 100);
+        setSavingsTarget(calculatedTarget);
+        localStorage.setItem(`savings_target_${today.getFullYear()}_${today.getMonth()}`, String(calculatedTarget));
+        localStorage.setItem(`savings_rate_${today.getFullYear()}_${today.getMonth()}`, String(Number(savingsAmount)));
         setSavingsAmount("");
         setShowSavingsModal(false);
         setIsEditingSavings(false);
@@ -380,7 +382,13 @@ export default function Dashboard() {
   };
 
   const handleOpenEditSavings = () => {
-    setSavingsAmount(savingsTarget);
+    const savedRate = localStorage.getItem(`savings_rate_${today.getFullYear()}_${today.getMonth()}`);
+    if (savedRate) {
+      setSavingsAmount(Number(savedRate));
+    } else {
+      const rate = userDataSalary > 0 ? (savingsTarget / userDataSalary) * 100 : 0;
+      setSavingsAmount(Math.round(rate));
+    }
     setIsEditingSavings(true);
     setShowSavingsModal(true);
     setShowSavingsMenu(false);
@@ -580,7 +588,7 @@ export default function Dashboard() {
   
   // حساب الهدف إما من الراتب والنسبة، أو من الهدف اليدوي كبديل
   const calculatedTarget = userDataSalary * (userDataSavingRate / 100);
-  const target = calculatedTarget > 0 ? calculatedTarget : (savingsTarget || 0);
+  const target = savingsTarget > 0 ? savingsTarget : (calculatedTarget > 0 ? calculatedTarget : 0);
   
   const currentMonthSaved = Number(savingsSummary?.currentMonthSaved) || 0;
   
@@ -2215,7 +2223,7 @@ export default function Dashboard() {
             <div style={{ textAlign: dir === "rtl" ? "right" : "left", marginBottom: 32 }}>
               <label style={{ display: "block", fontSize: 14, fontWeight: 700, color: "#64748B", marginBottom: 12 }}>
                 {isEditingSavings
-                  ? (lang === "ar" ? "كم هو هدفك للتوفير هذا الشهر؟" : "What is your savings goal for this month?")
+                  ? (lang === "ar" ? "ما هي النسبة التي تريد توفيرها من راتبك هذا الشهر؟" : "What percentage of your salary do you want to save this month?")
                   : (lang === "ar" ? "كم تريد الإيداع الآن؟" : "How much do you want to deposit now?")
                 }
               </label>
@@ -2228,7 +2236,7 @@ export default function Dashboard() {
                     const val = e.target.value.replace(/[^0-9]/g, "");
                     setSavingsAmount(val ? Number(val) : 0);
                   }}
-                  placeholder="0.00"
+                  placeholder="0"
                   style={{
                     width: "100%",
                     padding: "16px 20px",
@@ -2255,9 +2263,33 @@ export default function Dashboard() {
                   fontWeight: 800,
                   color: "#94A3B8",
                 }}>
-                  {onboardingData.currency || "₪"}
+                  {isEditingSavings ? "%" : (onboardingData.currency || "₪")}
                 </div>
               </div>
+              
+              {/* Auto calculation message when editing */}
+              {isEditingSavings && savingsAmount > 0 && (
+                <div style={{ 
+                  marginTop: 12, 
+                  padding: "10px 14px", 
+                  background: "#ECFDF5", 
+                  borderRadius: 12, 
+                  border: "1px dashed #A7F3D0",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  color: "#059669",
+                  fontSize: 13,
+                  fontWeight: 700,
+                  animation: "fadeIn 0.3s ease-out"
+                }}>
+                  <BrainCircuit size={16} />
+                  {lang === "ar" 
+                    ? `ستوفر ${formatCurrency(userDataSalary * (Number(savingsAmount) / 100))} هذا الشهر بناءً على راتبك`
+                    : `You will save ${formatCurrency(userDataSalary * (Number(savingsAmount) / 100))} this month based on your salary`}
+                </div>
+              )}
             </div>
 
             <div style={{ display: "flex", gap: 12 }}>
