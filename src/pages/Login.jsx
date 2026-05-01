@@ -115,7 +115,7 @@ export default function Login() {
                 margin: "0 0 8px",
               }}
             >
-              Prosperity
+              {lang === "ar" ? "إزدهار" : "Prosperity"}
             </h1>
             <div
               style={{
@@ -231,7 +231,7 @@ export default function Login() {
                   margin: 0,
                 }}
               >
-                PROSPERITY
+                {lang === "ar" ? "إزدهار" : "PROSPERITY"}
               </h1>
             </div>
 

@@ -20,7 +20,7 @@ export default function Navbar({ onMenuClick }) {
   };
 
   const page = PAGE_TITLES[pathname] || {
-    title: "Prosperity",
+    title: lang === "ar" ? "إزدهار" : "Prosperity",
     sub: lang === "ar" ? "ذكاء الثروة" : "Wealth Intelligence",
   };
 

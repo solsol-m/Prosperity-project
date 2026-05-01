@@ -128,7 +128,7 @@ export default function Sidebar({ isOpen, onClose }) {
                   lineHeight: 1.2,
                 }}
               >
-                Prosperity
+                {lang === "ar" ? "إزدهار" : "Prosperity"}
               </div>
               <div
                 style={{
